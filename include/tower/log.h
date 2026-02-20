@@ -1,11 +1,16 @@
 #ifndef TOWER_LOG_H
 #define TOWER_LOG_H
 
+#include <errno.h>
+#include <libgen.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
-#define DEFAULT_LOG_FILE "/var/log/tower.log"
+#define LOG_PATH_MAX 256
 
 typedef enum
 {
@@ -22,19 +27,74 @@ static const char *level_str[] = {
     "ERROR",
 };
 
+static char log_path[LOG_PATH_MAX] = {0};
+
 static inline void get_timestamp(char *buf, size_t len)
 {
   time_t now = time(NULL);
   strftime(buf, len, "%Y-%m-%dT%H:%M:%S%z", localtime(&now));
 }
 
+static inline int get_log_dir(char *buf, size_t len)
+{
+  const char *xdg_state_home = getenv("XDG_STATE_HOME");
+  if (xdg_state_home)
+  {
+    snprintf(buf, len, "%s/tower", xdg_state_home);
+    return 0;
+  }
+
+  const char *home = getenv("HOME");
+  if (home)
+  {
+    snprintf(buf, len, "%s/.local/state/tower", home);
+    return 0;
+  }
+
+  fprintf(stderr, "HOME dir not found\n");
+  return -1;
+}
+
+static inline int log_init(void)
+{
+  char dir[LOG_PATH_MAX - 10]; // reserve room for "/tower.log"
+  if (get_log_dir(dir, sizeof(dir)) < 0)
+  {
+    fprintf(stderr, "unable to get log dir, file logging unavailable\n");
+    return -1;
+  }
+
+  snprintf(log_path, sizeof(log_path), "%s/tower.log", dir);
+  if (mkdir(dir, 0755) < 0 && errno != EEXIST)
+  {
+    fprintf(stderr, "failed to create log dir %s: %s\n", dir, strerror(errno));
+    return -1;
+  }
+
+  FILE *fp = fopen(log_path, "a");
+  if (!fp)
+  {
+    fprintf(stderr, "failed to create log file %s: %s\n", log_path, strerror(errno));
+    return -1;
+  }
+  fclose(fp);
+
+  return 0;
+}
+
 static inline void log_write(LogLevel level, const char *file, int line, const char *fmt, ...)
 {
+  static int initialized = 0;
+  if (!initialized)
+  {
+    log_init();
+    initialized = 1;
+  }
+
   char timestamp[64];
   get_timestamp(timestamp, sizeof(timestamp));
 
-  // TODO: try to create file if not exists
-  FILE *fp = fopen(DEFAULT_LOG_FILE, "a");
+  FILE *fp = fopen(log_path, "a");
   if (fp)
   {
     fprintf(fp, "[%s] [%s] %s:%d ", timestamp, level_str[level], file, line);
