@@ -5,8 +5,6 @@
 
 #include "tower/metric.h"
 
-static struct termios original_terminal;
-
 void tui_get_termios(struct termios *termios);
 
 void tui_enter(void);

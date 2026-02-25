@@ -13,9 +13,6 @@ int main()
 
   MemInfo meminfo;
 
-  struct termios original_termios;
-  tui_get_termios(&original_termios);
-
   tui_enter();
   tui_clear();
 
