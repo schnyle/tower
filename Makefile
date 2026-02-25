@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude
-SRC = src/main.c src/config.c src/metric.c
+SRC = src/main.c src/config.c src/metric.c src/tui/tui.c
 TARGET = bin/tower
 
 $(TARGET): $(SRC) 

@@ -1,3 +1,6 @@
+#ifndef METRIC_H
+#define METRIC_H
+
 typedef struct
 {
   long total_kb;
@@ -8,3 +11,5 @@ typedef struct
 } MemInfo;
 
 void get_proc_meminfo(MemInfo *info);
+
+#endif
