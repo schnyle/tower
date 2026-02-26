@@ -52,26 +52,63 @@ void get_terminal_size(int *rows, int *cols)
   *cols = ws.ws_col;
 }
 
-void draw_rect(int x, int y, int w, int h)
+typedef struct
+{
+  int x;
+  int y;
+  int w;
+  int h;
+} Rect;
+
+void draw_rect(const Rect rect, const char *name)
 {
   // top border
-  front_set(x, y, "┌");
-  for (int i = 1; i < w - 1; ++i)
-    front_set(x + i, y, "─");
-  front_set(x + w - 1, y, "┐");
+  front_set(rect.x, rect.y, "┌");
+  for (int i = 1; i < rect.w - 1; ++i)
+    front_set(rect.x + i, rect.y, "─");
+  front_set(rect.x + rect.w - 1, rect.y, "┐");
 
   // sides
-  for (int i = 1; i < h - 1; ++i)
+  for (int i = 1; i < rect.h - 1; ++i)
   {
-    front_set(x, y + i, "│");
-    front_set(x + w - 1, y + i, "│");
+    front_set(rect.x, rect.y + i, "│");
+    front_set(rect.x + rect.w - 1, rect.y + i, "│");
   }
 
   // bottom border
-  front_set(x, y + h - 1, "└");
-  for (int i = 1; i < w - 1; ++i)
-    front_set(x + i, y + h - 1, "─");
-  front_set(x + w - 1, y + h - 1, "┘");
+  front_set(rect.x, rect.y + rect.h - 1, "└");
+  for (int i = 1; i < rect.w - 1; ++i)
+    front_set(rect.x + i, rect.y + rect.h - 1, "─");
+  front_set(rect.x + rect.w - 1, rect.y + rect.h - 1, "┘");
+
+  // name
+  if (!name || name[0] == '\0')
+    return;
+
+  const int len = strlen(name);
+  if (len + 2 > rect.w - 2)
+    return;
+
+  front_set(rect.x + 1, rect.y, " ");
+  for (int i = 0; i < len; ++i)
+  {
+    char buf[2] = {name[i], '\0'};
+    front_set(rect.x + i + 2, rect.y, buf);
+  }
+  front_set(rect.x + len + 2, rect.y, " ");
+}
+
+void draw_rect_text(const Rect rect, const char *s)
+{
+  const int len = strlen(s);
+  const int y_mid = rect.y + rect.h / 2;
+  const int x_start = rect.x + rect.w / 2 - len / 2;
+
+  for (int i = 0; i < len; ++i)
+  {
+    char buf[2] = {s[i], '\0'};
+    front_set(x_start + i, y_mid, buf);
+  }
 }
 
 void tui_enter(void)
@@ -120,7 +157,12 @@ void draw_tui(const MemInfo *const meminfo)
 {
   fputs(CURSOR_HOME, stdout); // begin drawing at top of screen
 
-  draw_rect(1, 1, 5, 5);
+  const Rect text_rect = {1, 1, 100, 40};
+  draw_rect(text_rect, "Ayooo");
+
+  char value_s[32];
+  sprintf(value_s, "Mem Available %ld kB", meminfo->available_kb);
+  draw_rect_text(text_rect, value_s);
 
   size_t offset = 0;
 
@@ -144,14 +186,5 @@ void draw_tui(const MemInfo *const meminfo)
   }
 
   write(STDOUT_FILENO, buffer.render_buf, offset);
-
-  // printf("MemInfo:\r\n");
-  // printf("\tTotal: %ld kB\r\n", meminfo->total_kb);
-  // printf("\tFree: %ld kB\r\n", meminfo->free_kb);
-  // printf("\tAvailable: %ld kB\r\n", meminfo->available_kb);
-  // printf("\tSwap Total: %ld kB\r\n", meminfo->swap_total_kb);
-  // printf("\tSwap Free: %ld kB\r\n", meminfo->swap_free_kb);
-  // printf("\n");
-  // printf("\r\nPress 'q' to quit\r\n");
   fflush(stdout);
 };
