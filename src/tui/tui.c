@@ -67,7 +67,7 @@ void tui_enter(void)
   buffer.cols = cols;
   buffer.front = calloc(cols * rows, sizeof(Cell));
   buffer.back = calloc(cols * rows, sizeof(Cell));
-  buffer.render_buf_size = rows * 4 + cols * 4 + rows * 2 + 8;
+  buffer.render_buf_size = rows * cols * 4 + rows * 2;
   buffer.render_buf = malloc(buffer.render_buf_size * 4);
 
   cfmakeraw(&terminal);
