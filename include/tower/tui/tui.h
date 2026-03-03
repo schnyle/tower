@@ -3,7 +3,7 @@
 
 #include <termios.h>
 
-#include "tower/metric.h"
+#include "tower/ring_buffer.h"
 
 void front_set(int, int, const char *);
 
@@ -15,6 +15,6 @@ void tui_exit();
 
 void tui_clear(void);
 
-void draw_tui(const MemInfo *const);
+void draw_tui(const RingBuffer *);
 
 #endif

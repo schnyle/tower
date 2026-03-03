@@ -7,7 +7,7 @@
 #include "tower/ring_buffer.h"
 #include "tower/tui/tui.h"
 
-#define METRIC_HISTORY_SIZE 3
+#define METRIC_HISTORY_SIZE 256
 
 int main()
 {
@@ -16,7 +16,7 @@ int main()
 
   MemInfo meminfo;
 
-  RingBuffer *mem_free_kb = rb_create(METRIC_HISTORY_SIZE, sizeof(long));
+  RingBuffer *mem_free_kb = rb_create(METRIC_HISTORY_SIZE, sizeof(meminfo.free_kb), DATA_TYPE_LONG);
   if (mem_free_kb == NULL)
   {
     LOG_ERROR("failed to initialize metrics data");
@@ -28,27 +28,24 @@ int main()
 
   while (1)
   {
+    // collect metrics
     get_proc_meminfo(&meminfo);
-    draw_tui(&meminfo);
 
-    rb_push(mem_free_kb, &meminfo.free_kb, sizeof(meminfo.free_kb));
-    LOG_INFO("");
-    LOG_INFO("count: %d\n", mem_free_kb->count);
-    // for (int i = 0; i < mem_free_kb->count; ++i)
-    // {
-    //   LOG_INFO("%ul\n", mem_free_kb->data[mem_free_kb->head + i] % mem_free_kb->size);
-    //   // LOG_INFO(
-    //   //     "%f\n",
-    //   //     mem_free_kb.data[(mem_free_kb.head + 1 - mem_free_kb.count + i + RING_BUFFER_SIZE) % RING_BUFFER_SIZE]);
-    // }
-    LOG_INFO("");
+    // update internal data structures
+    rb_push(mem_free_kb, &meminfo.available_kb, sizeof(meminfo.free_kb));
 
+    // draw TUI
+    draw_tui(mem_free_kb);
+
+    // collect user input
     char c;
     if (read(STDIN_FILENO, &c, 1) == 1 && c == 'q')
       break;
 
     sleep(1);
   }
+
+  rb_destroy(mem_free_kb);
 
   return 0;
 }

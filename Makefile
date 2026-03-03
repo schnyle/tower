@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -I include -I unity
 
-SRC = src/main.c src/config.c src/metric.c src/tui/tui.c src/tui/rect.c src/ring_buffer.c
+SRC = src/main.c src/config.c src/metric.c src/ring_buffer.c src/tui/tui.c src/tui/rect.c src/tui/bar.c
 TARGET = bin/tower
 
 TEST_SRC = src/ring_buffer.c unity/unity.c tests/test_ring_buffer.c

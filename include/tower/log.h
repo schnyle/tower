@@ -106,13 +106,13 @@ static inline void log_write(LogLevel level, const char *file, int line, const c
     fclose(fp);
   }
 
-  FILE *out = level >= LOG_WARNING ? stderr : stdout;
-  fprintf(out, "[%s] [%s] %s:%d ", timestamp, level_str[level], file, line);
-  va_list args;
-  va_start(args, fmt);
-  vfprintf(out, fmt, args);
-  fprintf(out, "\n");
-  va_end(args);
+  // FILE *out = level >= LOG_WARNING ? stderr : stdout;
+  // fprintf(out, "[%s] [%s] %s:%d ", timestamp, level_str[level], file, line);
+  // va_list args;
+  // va_start(args, fmt);
+  // vfprintf(out, fmt, args);
+  // fprintf(out, "\n");
+  // va_end(args);
 }
 
 #define LOG_INFO(fmt, ...) log_write(LOG_INFO, __FILE__, __LINE__, fmt, ##__VA_ARGS__)

@@ -6,7 +6,8 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "tower/metric.h"
+#include "tower/ring_buffer.h"
+#include "tower/tui/bar.h"
 #include "tower/tui/rect.h"
 #include "tower/tui/tui.h"
 
@@ -95,16 +96,18 @@ void tui_clear(void)
   fflush(stdout);
 }
 
-void draw_tui(const MemInfo *const meminfo)
+void draw_tui(const RingBuffer *mem_free_kb)
 {
+  memset(buffer.front, 0, buffer.cols * buffer.rows * sizeof(Cell));
   fputs(CURSOR_HOME, stdout); // begin drawing at top of screen
 
-  const Rect text_rect = {.xmin = 1, .ymin = 1, .width = 100, .height = 40};
-  rect_draw(text_rect, "Ayooo");
-
-  char value_s[32];
-  sprintf(value_s, "Mem Available %ld kB", meminfo->available_kb);
-  rect_draw_text(text_rect, value_s);
+  const Rect mem_rect = {.xmin = 1, .ymin = 1, .width = 100, .height = 40};
+  const Bar mem_bar = {
+      .rect = mem_rect,
+      .data_max = 32690896,
+      .rb = mem_free_kb,
+  };
+  bar_draw(mem_bar, "Memory");
 
   size_t offset = 0;
 

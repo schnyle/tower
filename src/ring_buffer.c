@@ -5,7 +5,7 @@
 #include "tower/log.h"
 #include "tower/ring_buffer.h"
 
-RingBuffer *rb_create(const size_t size, const size_t stride)
+RingBuffer *rb_create(const size_t size, const size_t stride, const DataType data_type)
 {
   if (size == 0 || stride == 0)
   {
@@ -28,6 +28,7 @@ RingBuffer *rb_create(const size_t size, const size_t stride)
     return NULL;
   }
 
+  rb->data_type = data_type;
   rb->count = 0;
   rb->head = size - 1;
   rb->size = size;
@@ -56,7 +57,7 @@ void rb_push(RingBuffer *rb, const void *val, const size_t len)
   rb->head %= rb->size;
 };
 
-const void *rb_get(RingBuffer *rb, const size_t i)
+const void *rb_get(const RingBuffer *rb, const size_t i)
 {
   if (i >= rb->count)
   {
@@ -65,5 +66,5 @@ const void *rb_get(RingBuffer *rb, const size_t i)
   }
 
   const size_t tail = rb->count == rb->size ? (rb->head + 1) % rb->size : 0;
-  return rb->data + tail + i;
+  return (char *)rb->data + (tail + i) * rb->stride;
 };
