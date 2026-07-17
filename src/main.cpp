@@ -4,6 +4,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "loadavg.hpp"
 #include "meminfo.hpp"
 #include "tui.hpp"
 
@@ -27,7 +28,13 @@ int main(void)
       printf("\n");
     };
 
-    next += std::chrono::seconds(1);
+    if (const auto loadavg = get_proc_loadavg())
+    {
+      loadavg->print();
+      printf("\n");
+    }
+
+    next += std::chrono::milliseconds(100);
     std::this_thread::sleep_until(next);
 
     tui_clear();
