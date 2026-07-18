@@ -1,3 +1,10 @@
-.PHONY: build
+CXX = g++
+CXXFLAGS = -std=c++20 -Iinclude -Wall -Wextra
+SRCS = src/main.cpp src/tui.cpp src/loadavg.cpp src/meminfo.cpp
+
+.PHONY: build build-prod
 build:
-	g++ -std=c++20 -Iinclude src/main.cpp src/tui.cpp src/loadavg.cpp src/meminfo.cpp -o build/tower
+	$(CXX) $(CXXFLAGS) -DDEBUG $(SRCS) -o build/tower
+
+build-prod:
+	$(CXX) $(CXXFLAGS) $(SRCS) -o build/tower
