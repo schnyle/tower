@@ -17,6 +17,8 @@ int main(void)
   tui_enter();
   tui_clear();
 
+  Stat last_stat;
+
   std::chrono::time_point next = std::chrono::steady_clock::now();
   while (true)
   {
@@ -41,8 +43,16 @@ int main(void)
 
     if (const auto stat = get_proc_stat())
     {
+      CpuTimes delta = stat->cpu_times - last_stat.cpu_times;
+      long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
+      long total_time = busy_time + delta.idle + delta.iowait;
+      double usage = static_cast<double>(busy_time) / static_cast<double>(total_time);
+      printf("CPU Load (average): %.0f%%\n\r", usage * 100);
+
       stat->print();
       printf("\n");
+
+      last_stat = *stat;
     }
     double duration = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
     // LOG_INFO("spent ", (int)duration, " μs reading /proc");

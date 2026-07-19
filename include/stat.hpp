@@ -17,6 +17,23 @@ struct CpuTimes
   long guest_nice = -1;
 };
 
+inline CpuTimes operator-(const CpuTimes &lhs, const CpuTimes &rhs)
+{
+  CpuTimes res;
+  res.user = lhs.user - rhs.user;
+  res.nice = lhs.nice - rhs.nice;
+  res.system = lhs.system - rhs.system;
+  res.idle = lhs.idle - rhs.idle;
+  res.iowait = lhs.iowait - rhs.iowait;
+  res.irq = lhs.irq - rhs.irq;
+  res.softirq = lhs.softirq - rhs.softirq;
+  res.steal = lhs.steal - rhs.steal;
+  res.guest = lhs.guest - rhs.guest;
+  res.guest_nice = lhs.guest_nice - rhs.guest_nice;
+
+  return res;
+}
+
 struct Stat
 {
   CpuTimes cpu_times;
