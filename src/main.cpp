@@ -7,6 +7,7 @@
 #include "loadavg.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
+#include "stat.hpp"
 #include "tui.hpp"
 
 int main(void)
@@ -25,6 +26,7 @@ int main(void)
       break;
     }
 
+    std::chrono::time_point start = std::chrono::steady_clock::now();
     if (const auto meminfo = get_proc_meminfo())
     {
       meminfo->print();
@@ -36,6 +38,14 @@ int main(void)
       loadavg->print();
       printf("\n");
     }
+
+    if (const auto stat = get_proc_stat())
+    {
+      stat->print();
+      printf("\n");
+    }
+    double duration = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
+    // LOG_INFO("spent ", (int)duration, " μs reading /proc");
 
     next += std::chrono::milliseconds(1000);
     std::this_thread::sleep_until(next);

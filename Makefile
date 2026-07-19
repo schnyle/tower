@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -Iinclude -Wall -Wextra
-SRCS = src/main.cpp src/tui.cpp src/loadavg.cpp src/meminfo.cpp
+SRCS = src/main.cpp src/tui.cpp src/loadavg.cpp src/meminfo.cpp src/stat.cpp
 
 .PHONY: build build-prod
 build:
