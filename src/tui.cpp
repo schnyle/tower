@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -45,4 +46,14 @@ void tui_enter(void)
 
   fputs(ALT_SCREEN_ON, stdout);
   fflush(stdout);
+}
+
+TerminalSize tui_get_size()
+{
+  struct winsize ws;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_row == 0 || ws.ws_col == 0)
+  {
+    return {24, 80};
+  }
+  return {ws.ws_row, ws.ws_col};
 }
