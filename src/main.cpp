@@ -13,6 +13,7 @@
 int main(void)
 {
   LOG_INFO("starting tower");
+  LOG_DEBUG("starting tower in DEBUG mode");
 
   tui_enter();
   tui_clear();

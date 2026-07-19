@@ -114,7 +114,7 @@ inline Logger &logger() { return Logger::get_instance(); }
 #define LOG_WARNING(...) logger().log(LogLevel::Warning, std::source_location::current(), __VA_ARGS__)
 #define LOG_ERROR(...) logger().log(LogLevel::Error, std::source_location::current(), __VA_ARGS__)
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define LOG_DEBUG(...) logger().log(LogLevel::Debug, std::source_location::current(), __VA_ARGS__)
 #else
 #define LOG_DEBUG(...) ((void)0)
