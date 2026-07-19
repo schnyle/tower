@@ -13,11 +13,11 @@ struct MemInfo
 
   void print() const
   {
-    printf("MemTotal: %lld kB\n\r", mem_total_kb);
-    printf("MemFree: %lld kB\n\r", mem_free_kb);
-    printf("MemAvailable: %lld kB\n\r", mem_available_kb);
-    printf("SwapTotal: %lld kB\n\r", swap_total_kb);
-    printf("SwapFree: %lld kB\n\r", swap_free_kb);
+    printf("MemTotal: %.2f gB\n\r", (double)mem_total_kb / 1024 / 1024);
+    printf("MemFree: %.2f gB\n\r", (double)mem_free_kb / 1024 / 1024);
+    printf("MemAvailable: %.2f gB\n\r", (double)mem_available_kb / 1024 / 1024);
+    printf("SwapTotal: %.2f gB\n\r", (double)swap_total_kb / 1024 / 1024);
+    printf("SwapFree: %.2f gB\n\r", (double)swap_free_kb / 1024 / 1024);
   }
 };
 
