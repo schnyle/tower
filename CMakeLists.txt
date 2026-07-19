@@ -12,15 +12,18 @@ if(NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS)
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
-add_executable(tower
-  src/main.cpp
+add_library(tower_lib STATIC
   src/tui.cpp
   src/loadavg.cpp
   src/meminfo.cpp
   src/stat.cpp
 )
+target_include_directories(tower_lib PUBLIC include)
+target_compile_options(tower_lib PUBLIC -Wall -Wextra -ffile-prefix-map=${CMAKE_SOURCE_DIR}/=)
 
-target_include_directories(tower PRIVATE include)
-target_compile_options(tower PRIVATE -Wall -Wextra -ffile-prefix-map=${CMAKE_SOURCE_DIR}/=)
+add_executable(tower src/main.cpp)
+target_link_libraries(tower PRIVATE tower_lib)
 
+enable_testing()
+add_subdirectory(tests)
 
