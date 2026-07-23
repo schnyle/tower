@@ -14,6 +14,7 @@ endif()
 
 add_library(tower_lib STATIC
   src/tui.cpp
+  src/screen_buffer.cpp
   src/loadavg.cpp
   src/meminfo.cpp
   src/stat.cpp
