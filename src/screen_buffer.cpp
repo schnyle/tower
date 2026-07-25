@@ -14,36 +14,6 @@ ScreenBuffer::ScreenBuffer(unsigned short rows, unsigned short cols) : rows_(row
   frame_.reserve(estimated_frame_size);
 }
 
-void ScreenBuffer::blit(
-    const std::vector<std::vector<std::string>> &source_buf,
-    unsigned short row_offset,
-    unsigned short col_offset)
-{
-  const size_t source_rows = source_buf.size();
-  const size_t source_cols = source_buf.at(0).size();
-
-  if (col_offset + source_cols > cols_ || row_offset + source_rows > rows_)
-  {
-    const std::string msg = std::format(
-        "ScreenBuffer::blit: source ({} rows x {} cols) at offset ({}, {}) exceeds buffer bounds ({} x {})",
-        source_rows,
-        source_cols,
-        row_offset,
-        col_offset,
-        rows_,
-        cols_);
-    throw std::out_of_range(msg);
-  }
-
-  for (size_t i = 0; i < source_rows; ++i)
-  {
-    for (size_t j = 0; j < source_cols; ++j)
-    {
-      back_buf_[i + row_offset][j + col_offset] = source_buf[i][j];
-    }
-  }
-}
-
 void ScreenBuffer::draw()
 {
   static constexpr std::string CURSOR_POSITION_FMT = "\033[{};{}H";

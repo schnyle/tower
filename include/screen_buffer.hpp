@@ -8,7 +8,7 @@ class ScreenBuffer
 public:
   ScreenBuffer(unsigned short rows, unsigned short cols);
 
-  void blit(const std::vector<std::vector<std::string>> &buf, unsigned short row_offset, unsigned short col_offset);
+  std::vector<std::vector<std::string>> &back_buf() { return back_buf_; }
 
   void draw();
 

@@ -59,14 +59,13 @@ inline void poc_cpu_times_bar_plot(void)
     }
 
     auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
-    screen_buffer.blit(build_bar_plot(BAR_PLOT_ROWS, terminal_cols, 0., 1., cpu_load_rb), 0, 0);
-
-    screen_buffer.blit(
-        build_bar_plot(BAR_PLOT_ROWS, terminal_cols, 0., total_memory, mem_available_rb), terminal_rows / 2, 0);
+    build_bar_plot(screen_buffer.back_buf(), 0, 0, BAR_PLOT_ROWS, terminal_cols, 0., 1., cpu_load_rb);
+    build_bar_plot(
+        screen_buffer.back_buf(), terminal_rows / 2, 0, BAR_PLOT_ROWS, terminal_cols, 0., total_memory, mem_available_rb);
 
     screen_buffer.draw();
 
-    next += std::chrono::milliseconds(100);
+    next += std::chrono::milliseconds(50);
     std::this_thread::sleep_until(next);
   }
 }

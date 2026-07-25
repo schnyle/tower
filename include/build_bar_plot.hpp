@@ -26,21 +26,46 @@ inline constexpr std::array<std::string_view, 8> UNICODE_BLOCK_ELEMENTS = {
 };
 inline constexpr int BUCKETS_PER_ROW = UNICODE_BLOCK_ELEMENTS.size();
 
-inline void validate_inputs(const size_t n_rows, const size_t n_cols, const double ymin, const double ymax)
+inline void validate_inputs(
+    const std::vector<std::vector<std::string>> &dest,
+    const size_t row_offset,
+    const size_t col_offset,
+    const size_t row_count,
+    const size_t col_count,
+    const double ymin,
+    const double ymax)
 {
-  if (n_rows == 0)
+  if (row_count == 0)
   {
     throw std::invalid_argument("build_bar_plot: rows must be > 0");
   }
 
-  if (n_cols == 0)
+  if (col_count == 0)
   {
     throw std::invalid_argument("build_bar_plot: cols must be > 0");
   }
 
+  if (dest.size() < row_offset + row_count)
+  {
+    const auto msg = std::format(
+        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})", row_offset, row_count, dest.size());
+    throw std::invalid_argument(msg);
+  }
+
+  if (dest[row_offset].size() < col_offset + col_count)
+  {
+    const auto msg = std::format(
+        "build_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
+        col_offset,
+        col_count,
+        dest[row_offset].size());
+    throw std::invalid_argument(msg);
+  }
+
   if (!(ymin < ymax))
   {
-    throw std::invalid_argument(std::format("build_bar_plot: ymin ({}) must be less than ymax ({})", ymin, ymax));
+    const auto msg = std::format("build_bar_plot: ymin ({}) must be less than ymax ({})", ymin, ymax);
+    throw std::invalid_argument(msg);
   }
 }
 
@@ -50,13 +75,13 @@ struct StartIndexes
   size_t data_index;
 };
 
-inline StartIndexes compute_start_indexes(const size_t n_cols, const size_t data_size)
+inline StartIndexes compute_start_indexes(const size_t col_count, const size_t data_size)
 {
-  if (data_size < n_cols)
+  if (data_size < col_count)
   {
-    return {.col_index = n_cols - data_size, .data_index = 0};
+    return {.col_index = col_count - data_size, .data_index = 0};
   }
-  return {.col_index = 0, .data_index = data_size - n_cols};
+  return {.col_index = 0, .data_index = data_size - col_count};
 }
 
 // Computes the total number of buckets a value fills, counting from the bottom of the
@@ -68,11 +93,11 @@ inline StartIndexes compute_start_indexes(const size_t n_cols, const size_t data
 // This is a deliberate simplification for now -- it may be worth making it toggleable
 // per-metric later (e.g. a percentage where any nonzero reading should show at least
 // one bucket).
-inline int value_to_n_buckets(const size_t n_rows, const double ymin, const double ymax, const double value)
+inline int value_to_n_buckets(const size_t row_count, const double ymin, const double ymax, const double value)
 {
   if (value >= ymax)
   {
-    return n_rows * BUCKETS_PER_ROW;
+    return row_count * BUCKETS_PER_ROW;
   }
 
   if (value <= ymin)
@@ -80,51 +105,56 @@ inline int value_to_n_buckets(const size_t n_rows, const double ymin, const doub
     return 0;
   }
 
-  const double range_size = (ymax - ymin) / (n_rows * BUCKETS_PER_ROW + 1);
+  const double range_size = (ymax - ymin) / (row_count * BUCKETS_PER_ROW + 1);
   return floor((value - ymin) / range_size);
 }
 
 inline std::vector<std::string_view>
-value_to_column_glyphs(const size_t n_rows, const double ymin, const double ymax, const double value)
+value_to_column_glyphs(const size_t row_count, const double ymin, const double ymax, const double value)
 {
-  const int n_buckets = value_to_n_buckets(n_rows, ymin, ymax, value);
+  const int n_buckets = value_to_n_buckets(row_count, ymin, ymax, value);
   const int full_rows = n_buckets / BUCKETS_PER_ROW;
   const int remaining_rows = n_buckets % BUCKETS_PER_ROW;
 
-  std::vector<std::string_view> glyphs(n_rows, " ");
+  std::vector<std::string_view> glyphs(row_count, " ");
   std::fill(glyphs.end() - full_rows, glyphs.end(), UNICODE_BLOCK_ELEMENTS.back());
   if (remaining_rows > 0)
   {
-    glyphs[n_rows - full_rows - 1] = UNICODE_BLOCK_ELEMENTS[remaining_rows - 1];
+    glyphs[row_count - full_rows - 1] = UNICODE_BLOCK_ELEMENTS[remaining_rows - 1];
   }
 
   return glyphs;
 }
 
-inline std::vector<std::vector<std::string>> build_bar_plot(
-    const size_t n_rows,
-    const size_t n_cols,
+inline void build_bar_plot(
+    std::vector<std::vector<std::string>> &dest,
+    const size_t row_offset,
+    const size_t col_offset,
+    const size_t row_count,
+    const size_t col_count,
     const double ymin,
     const double ymax,
     const RingBuffer<double> &data_rb)
 {
-  validate_inputs(n_rows, n_cols, ymin, ymax);
+  validate_inputs(dest, row_offset, col_offset, row_count, col_count, ymin, ymax);
 
-  std::vector<std::vector<std::string>> res(n_rows, std::vector<std::string>(n_cols, " "));
+  for (size_t row = row_offset; row < row_offset + row_count; ++row)
+  {
+    std::fill(dest[row].begin() + col_offset, dest[row].begin() + col_offset + col_count, " ");
+  }
+
   if (data_rb.size() == 0)
   {
-    return res;
+    return;
   }
 
-  auto [col_index, data_index] = compute_start_indexes(n_cols, data_rb.size());
-  for (; col_index < n_cols; ++col_index)
+  auto [col_index, data_index] = compute_start_indexes(col_count, data_rb.size());
+  for (; col_index < col_count; ++col_index)
   {
-    const auto glyphs = value_to_column_glyphs(n_rows, ymin, ymax, data_rb[data_index++]);
-    for (size_t row = 0; row < n_rows; ++row)
+    const auto glyphs = value_to_column_glyphs(row_count, ymin, ymax, data_rb[data_index++]);
+    for (size_t row_index = 0; row_index < row_count; ++row_index)
     {
-      res[row][col_index] = glyphs[row];
+      dest[row_offset + row_index][col_offset + col_index] = glyphs[row_index];
     }
   }
-
-  return res;
 };
