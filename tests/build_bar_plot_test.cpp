@@ -1,3 +1,4 @@
+#include "gtest/gtest.h"
 #include <gtest/gtest.h>
 #include <initializer_list>
 #include <stdexcept>
@@ -13,7 +14,7 @@ make_grid(const size_t row_count, const size_t col_count, const std::string &fil
   return std::vector<std::vector<std::string>>(row_count, std::vector<std::string>(col_count, fill));
 }
 
-RingBuffer<double> make_ring_buffer(std::initializer_list<double> values)
+RingBuffer<double> make_ring_buffer(std::vector<double> values)
 {
   RingBuffer<double> res(values.size());
   for (const auto &v : values)
@@ -107,215 +108,69 @@ TEST(BuildBarPlot, WritesOnlyToAssignedRegion)
   }
 }
 
-// single cell result validation
+// bar plot result validation
 
-TEST(BuildBarPlot, SingleCellValueAtYMaxIsFullBlock)
+struct BuildBarPlotCase
 {
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({100});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], "█");
+  std::string name;
+  std::vector<double> values;
+  double ymin;
+  double ymax;
+  size_t row_count;
+  size_t col_count;
+  std::vector<std::vector<std::string>> expected;
+};
+
+class BuildBarPlotParam : public ::testing::TestWithParam<BuildBarPlotCase>
+{
+};
+
+TEST_P(BuildBarPlotParam, ProducesExpectedGrid)
+{
+  const auto &c = GetParam();
+  auto dest = make_grid(c.row_count, c.col_count);
+  const auto rb = make_ring_buffer(c.values);
+  build_bar_plot(dest, 0, 0, c.row_count, c.col_count, c.ymin, c.ymax, rb);
+  EXPECT_EQ(dest, c.expected);
 }
 
-TEST(BuildBarPlot, SingleCellValueAboveYMaxIsFullBlock)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({101});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], "█");
-}
+INSTANTIATE_TEST_SUITE_P(
+    BuildBarPlot,
+    BuildBarPlotParam,
+    ::testing::Values(
+        // single-cell
+        BuildBarPlotCase{"SingleCellAtYMaxIsFull", {100}, 0, 100, 1, 1, {{"█"}}},
+        BuildBarPlotCase{"SingleCellAboveYMaxIsFull", {101}, 0, 100, 1, 1, {{"█"}}},
+        BuildBarPlotCase{"SingleCellAtYMinIsEmpty", {0}, 0, 100, 1, 1, {{" "}}},
+        BuildBarPlotCase{"SingleCellBelowYMinIsEmpty", {-1}, 0, 100, 1, 1, {{" "}}},
+        BuildBarPlotCase{"SingleCellBucket0IsEmpty", {3.7}, 0, 99, 1, 1, {{" "}}},
+        BuildBarPlotCase{"SingleCellBucket1IsOneEigth", {13.6}, 0, 99, 1, 1, {{"▁"}}},
+        BuildBarPlotCase{"SingleCellBucket2IsTwoEigths", {25.0}, 0, 99, 1, 1, {{"▂"}}},
+        BuildBarPlotCase{"SingleCellBucket3IsThreeEigths", {36.0}, 0, 99, 1, 1, {{"▃"}}},
+        BuildBarPlotCase{"SingleCellBucket4IsFourEigths", {50.0}, 0, 99, 1, 1, {{"▄"}}},
+        BuildBarPlotCase{"SingleCellBucket5IsFiveEigths", {60.0}, 0, 99, 1, 1, {{"▅"}}},
+        BuildBarPlotCase{"SingleCellBucket6IsSixEigths", {70.0}, 0, 99, 1, 1, {{"▆"}}},
+        BuildBarPlotCase{"SingleCellBucket7IsSevenEigths", {80.0}, 0, 99, 1, 1, {{"▇"}}},
+        BuildBarPlotCase{"SingleCellBucket8IsFull", {90.0}, 0, 99, 1, 1, {{"█"}}},
 
-TEST(BuildBarPlot, SingleCellValueAtYMinIsEmptyBlock)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-}
+        // multi row
+        BuildBarPlotCase{"MultiRowAtYMaxIsFull", {100.0}, 0, 100, 3, 1, {{"█"}, {"█"}, {"█"}}},
+        BuildBarPlotCase{"MultiRowAboveYMaxIsFull", {101.0}, 0, 100, 3, 1, {{"█"}, {"█"}, {"█"}}},
+        BuildBarPlotCase{"MultiRowAtYMinIsEmpty", {0.0}, 0, 100, 3, 1, {{" "}, {" "}, {" "}}},
+        BuildBarPlotCase{"MultiRowBelowYMinIsEmpty", {-1.0}, 0, 100, 3, 1, {{" "}, {" "}, {" "}}},
+        BuildBarPlotCase{"MultiRowFillsOneRowPlusPartial", {50.0}, 0, 99, 3, 1, {{" "}, {"▄"}, {"█"}}},
+        BuildBarPlotCase{"MultiRowAtYMinIsBlank", {0.0}, 0, 99, 3, 1, {{" "}, {" "}, {" "}}},
+        BuildBarPlotCase{"MultiRowFillsExactlyTwoRows", {67.0}, 0, 99, 3, 1, {{" "}, {"█"}, {"█"}}},
 
-TEST(BuildBarPlot, SingleCellValueBelowYMinIsEmptyBlock)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({-1});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket0IsBlank)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({3.7});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], " ");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket1IsOneEighth)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({13.6});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▁");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket2IsTwoEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({25.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▂");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket3IsThreeEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({36.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▃");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket4IsFourEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({50.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▄");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket5IsFiveEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({60.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▅");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket6IsSixEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({70.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▆");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket7IsSevenEighths)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({80.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "▇");
-}
-
-TEST(BuildBarPlot, SingleCellValueInBucket8IsFullBlock)
-{
-  auto dest = make_grid(1, 1);
-  const auto rb = make_ring_buffer({90.0});
-  build_bar_plot(dest, 0, 0, 1, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], "█");
-}
-
-// multi-row result validation
-
-TEST(BuildBarPlot, MultiRowValueAtYMaxIsFullBlock)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({100});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], "█");
-  EXPECT_EQ(dest[1][0], "█");
-  EXPECT_EQ(dest[2][0], "█");
-}
-
-TEST(BuildBarPlot, MultiRowValueAboveYMaxIsFullBlock)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({101});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], "█");
-  EXPECT_EQ(dest[1][0], "█");
-  EXPECT_EQ(dest[2][0], "█");
-}
-
-TEST(BuildBarPlot, MultiRowValueAtYMinIsEmptyBlock)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({0});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[1][0], " ");
-  EXPECT_EQ(dest[2][0], " ");
-}
-
-TEST(BuildBarPlot, MultiRowValueBelowYMinIsEmptyBlock)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({-1});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[1][0], " ");
-  EXPECT_EQ(dest[2][0], " ");
-}
-
-TEST(BuildBarPlot, MultiRowValueFillsOneRowPlusPartial)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({50.0});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[1][0], "▄");
-  EXPECT_EQ(dest[2][0], "█");
-}
-
-TEST(BuildBarPlot, MultiRowValueAtYMinIsBlank)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({0.0});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[1][0], " ");
-  EXPECT_EQ(dest[2][0], " ");
-}
-
-TEST(BuildBarPlot, MultiRowValueFillsExactlyTwoRowsWithNoPartial)
-{
-  auto dest = make_grid(3, 1);
-  const auto rb = make_ring_buffer({67.0});
-  build_bar_plot(dest, 0, 0, 3, 1, 0, 99, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[1][0], "█");
-  EXPECT_EQ(dest[2][0], "█");
-}
-
-// multi-column result validation
-
-TEST(BuildBarPlot, MultiColumnEachColumnGetsCorrectGlyph)
-{
-  auto dest = make_grid(1, 3);
-  const auto rb = make_ring_buffer({0., 50., 100.});
-  build_bar_plot(dest, 0, 0, 1, 3, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[0][1], "▄");
-  EXPECT_EQ(dest[0][2], "█");
-}
-
-TEST(BuildBarPlot, MultiColumnRightAlignedIfDataLessThanWidth)
-{
-  auto dest = make_grid(1, 4);
-  const auto rb = make_ring_buffer({50., 100.});
-  build_bar_plot(dest, 0, 0, 1, 4, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], " ");
-  EXPECT_EQ(dest[0][1], " ");
-  EXPECT_EQ(dest[0][2], "▄");
-  EXPECT_EQ(dest[0][3], "█");
-}
-
-TEST(BuildBarPlot, MultiColumnRightAlignedIfDataGreaterThanWidth)
-{
-  auto dest = make_grid(1, 2);
-  const auto rb = make_ring_buffer({50., 0., 50., 100.});
-  build_bar_plot(dest, 0, 0, 1, 2, 0, 100, rb);
-  EXPECT_EQ(dest[0][0], "▄");
-  EXPECT_EQ(dest[0][1], "█");
-}
-
-// // TODO
-// //   - refactor using parametrized google tests (TEST_P)
+        // multi column
+        BuildBarPlotCase{"MultiColumnEachColumnGetsCorrectGlyph", {0., 50., 100.}, 0, 100, 1, 3, {{" ", "▄", "█"}}},
+        BuildBarPlotCase{"MultiColumnRightAlignedIfDataLessThanWidth", {50., 100.}, 0, 100, 1, 4, {{" ", " ", "▄", "█"}}},
+        BuildBarPlotCase{
+            "MultiColumnRightAlignedIfDataGreaterThanWidth",
+            {50., 0., 50., 100.},
+            0,
+            100,
+            1,
+            2,
+            {{"▄", "█"}}}),
+    [](const ::testing::TestParamInfo<BuildBarPlotCase> &info) { return info.param.name; });
