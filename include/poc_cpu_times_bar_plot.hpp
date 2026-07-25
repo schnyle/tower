@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "build_bar_plot.hpp"
+#include "build_window_frame.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
 #include "ring_buffer.hpp"
@@ -59,9 +60,20 @@ inline void poc_cpu_times_bar_plot(void)
     }
 
     auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
-    build_bar_plot(screen_buffer.back_buf(), 0, 0, BAR_PLOT_ROWS, terminal_cols, 0., 1., cpu_load_rb);
+
+    build_window_frame(screen_buffer.back_buf(), 0, 0, BAR_PLOT_ROWS, terminal_cols, "cpu load");
+    build_bar_plot(screen_buffer.back_buf(), 1, 1, BAR_PLOT_ROWS - 2, terminal_cols - 2, 0., 1., cpu_load_rb);
+
+    build_window_frame(screen_buffer.back_buf(), terminal_rows / 2, 0, BAR_PLOT_ROWS, terminal_cols, "mem available");
     build_bar_plot(
-        screen_buffer.back_buf(), terminal_rows / 2, 0, BAR_PLOT_ROWS, terminal_cols, 0., total_memory, mem_available_rb);
+        screen_buffer.back_buf(),
+        terminal_rows / 2 + 1,
+        1,
+        BAR_PLOT_ROWS - 2,
+        terminal_cols - 2,
+        0.,
+        total_memory,
+        mem_available_rb);
 
     screen_buffer.draw();
 
