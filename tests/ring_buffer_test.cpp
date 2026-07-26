@@ -1,11 +1,16 @@
 #include <gtest/gtest.h>
+#include <optional>
 #include <stdexcept>
 
 #include "ring_buffer.hpp"
 
+// basic
+
 TEST(RingBuffer, CanBeConstructedWithCapacity) { RingBuffer<int> rb(4); }
 
 TEST(RingBuffer, ThrowsOnZeroCapacity) { EXPECT_THROW(RingBuffer<int>(0), std::invalid_argument); }
+
+// initial state
 
 TEST(RingBuffer, NewBufferIsEmpty)
 {
@@ -17,6 +22,12 @@ TEST(RingBuffer, NewBufferReportsCapacity)
 {
   RingBuffer<int> rb(4);
   EXPECT_EQ(rb.capacity(), 4u);
+}
+
+TEST(RingBuffer, NewBufferNewestIsNullopt)
+{
+  RingBuffer<int> rb(4);
+  EXPECT_EQ(rb.newest(), std::nullopt);
 }
 
 TEST(RingBuffer, PushBelowCapacityIncreasesSize)
@@ -57,7 +68,29 @@ TEST(RingBuffer, PushPastCapacityOverwritesOldest)
   EXPECT_EQ(rb[3], 5);
 }
 
-TEST(RingBuffer, ThrowsOnOutOfRangeIndex)
+TEST(RingBuffer, NewestReturnsLastPushedWhenBelowCapacity)
+{
+  RingBuffer<int> rb(4);
+  rb.push(1);
+  rb.push(2);
+  rb.push(3);
+
+  EXPECT_EQ(rb.newest(), 3);
+}
+
+TEST(RingBuffer, NewestReturnsLastPushedWhenAtCapacity)
+{
+  RingBuffer<int> rb(4);
+  rb.push(1);
+  rb.push(2);
+  rb.push(3);
+  rb.push(4); // size == capacity
+  rb.push(5);
+
+  EXPECT_EQ(rb.newest(), 5);
+}
+
+TEST(RingBuffer, ThrowsOnOutOfRangeAccess)
 {
   RingBuffer<int> rb(4);
   rb.push(1);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -15,6 +16,15 @@ public:
 
   std::size_t size() const { return size_; }
   std::size_t capacity() const { return buf_.size(); }
+
+  std::optional<T> newest() const
+  {
+    if (size() == 0)
+    {
+      return std::nullopt;
+    }
+    return buf_[(head_ + capacity() - 1) % capacity()];
+  }
 
   void push(const T &ele)
   {

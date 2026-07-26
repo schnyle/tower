@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <format>
 #include <optional>
 #include <thread>
 #include <unistd.h>
@@ -38,6 +39,7 @@ inline void poc_cpu_times_bar_plot(void)
       .title = "cpu load",
       .ymin = 0.,
       .ymax = 1.,
+      .format_value = [](double v) { return std::format("{:.1f}%", v * 100); },
       .data_rb = cpu_load_rb};
 
   BarPlotWindow available_mem_w{
@@ -48,6 +50,7 @@ inline void poc_cpu_times_bar_plot(void)
       .title = "available memory",
       .ymin = 0.,
       .ymax = 1.,
+      .format_value = [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
       .data_rb = mem_available_rb};
 
   std::chrono::time_point next = std::chrono::steady_clock::now();
