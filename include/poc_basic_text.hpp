@@ -9,6 +9,7 @@
 #include "loadavg.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
+#include "net_dev.hpp"
 #include "stat.hpp"
 #include "tui.hpp"
 
@@ -56,6 +57,13 @@ inline void poc_basic_text(void)
 
       last_stat = *stat;
     }
+
+    if (const auto net_dev = get_proc_net_dev())
+    {
+      net_dev->print();
+      printf("\n");
+    }
+
     double duration = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
     LOG_INFO("spent ", (int)duration, " μs reading /proc");
 

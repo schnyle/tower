@@ -1,12 +1,12 @@
 #include "poc_basic_text.hpp"
-#include "poc_cpu_times_bar_plot.hpp"
+#include "poc_tui.hpp"
 
 int main(void)
 {
   try
   {
     // poc_basic_text();
-    poc_cpu_times_bar_plot();
+    poc_tui();
   }
   catch (const std::exception &e)
   {

@@ -17,6 +17,7 @@ add_library(tower_lib STATIC
   src/screen_buffer.cpp
   src/loadavg.cpp
   src/meminfo.cpp
+  src/net_dev.cpp
   src/stat.cpp
 )
 target_include_directories(tower_lib PUBLIC include)
