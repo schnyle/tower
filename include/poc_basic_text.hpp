@@ -17,8 +17,7 @@ inline void poc_basic_text(void)
   LOG_INFO("starting tower");
   LOG_DEBUG("starting tower in DEBUG mode");
 
-  tui_enter();
-  tui_clear();
+  Tui tui;
 
   Stat last_stat;
 
@@ -63,6 +62,6 @@ inline void poc_basic_text(void)
     next += std::chrono::milliseconds(1000);
     std::this_thread::sleep_until(next);
 
-    tui_clear();
+    tui.clear();
   }
 }

@@ -1,13 +1,31 @@
 #pragma once
 
+#include <termios.h>
+
 struct TerminalSize
 {
   unsigned short rows;
   unsigned short cols;
 };
 
-void tui_enter(void);
+class Tui
+{
+public:
+  Tui() : original_termios_(get_current_termios()) { enter(); };
+  ~Tui() { exit(); };
 
-void tui_clear(void);
+  Tui(const Tui &) = delete;
+  Tui &operator=(const Tui &) = delete;
+  Tui(Tui &&) = delete;
+  Tui &operator=(Tui &&) = delete;
 
-TerminalSize tui_get_size();
+  void clear();
+  TerminalSize get_size() const;
+
+private:
+  const struct termios original_termios_;
+
+  void enter();
+  void exit();
+  static struct termios get_current_termios();
+};

@@ -20,10 +20,9 @@ inline void poc_cpu_times_bar_plot(void)
   LOG_INFO("starting tower");
   LOG_DEBUG("starting tower in DEBUG mode");
 
-  tui_enter();
-  tui_clear();
+  const Tui tui;
 
-  auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
+  auto [terminal_rows, terminal_cols] = tui.get_size(); // move to an eventual tui_render() call
   ScreenBuffer screen_buffer(terminal_rows, terminal_cols);
 
   Stat last_stat;

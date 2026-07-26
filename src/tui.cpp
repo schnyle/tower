@@ -1,7 +1,6 @@
 #include "tui.hpp"
 
 #include <cstdio>
-#include <cstdlib>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -13,17 +12,7 @@
 #define ALT_SCREEN_ON "\033[?1049h"
 #define ALT_SCREEN_OFF "\033[?1049l"
 
-static struct termios original_termios;
-
-static void tui_exit(void)
-{
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
-  fputs(ALT_SCREEN_OFF, stdout);
-  fputs(CURSOR_SHOW, stdout);
-  fflush(stdout);
-}
-
-void tui_clear(void)
+void Tui::clear(void)
 {
   fputs(CURSOR_HOME, stdout);
   fputs(CURSOR_HIDE, stdout);
@@ -31,24 +20,7 @@ void tui_clear(void)
   fflush(stdout);
 }
 
-void tui_enter(void)
-{
-  tcgetattr(STDIN_FILENO, &original_termios);
-  atexit(tui_exit);
-
-  struct termios term;
-  tcgetattr(STDIN_FILENO, &term);
-
-  cfmakeraw(&term);
-  term.c_cc[VMIN] = 0; // set minimum number of chars to 0 so a read() does not block
-
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
-
-  fputs(ALT_SCREEN_ON, stdout);
-  fflush(stdout);
-}
-
-TerminalSize tui_get_size()
+TerminalSize Tui::get_size() const
 {
   struct winsize ws;
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_row == 0 || ws.ws_col == 0)
@@ -56,4 +28,33 @@ TerminalSize tui_get_size()
     return {24, 80};
   }
   return {ws.ws_row, ws.ws_col};
+}
+
+void Tui::enter(void)
+{
+  struct termios t;
+  tcgetattr(STDIN_FILENO, &t);
+
+  cfmakeraw(&t);
+  t.c_cc[VMIN] = 0; // set minimum number of chars to 0 so a read() does not block
+
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &t);
+
+  fputs(ALT_SCREEN_ON, stdout);
+  clear();
+}
+
+void Tui::exit(void)
+{
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios_);
+  fputs(ALT_SCREEN_OFF, stdout);
+  fputs(CURSOR_SHOW, stdout);
+  fflush(stdout);
+}
+
+struct termios Tui::get_current_termios()
+{
+  struct termios t;
+  tcgetattr(STDIN_FILENO, &t);
+  return t;
 }
