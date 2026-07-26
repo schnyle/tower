@@ -6,16 +6,13 @@
 #include <thread>
 #include <unistd.h>
 
-#include "build_bar_plot.hpp"
-#include "build_window_frame.hpp"
+#include "bar_plot_window.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
 #include "ring_buffer.hpp"
 #include "screen_buffer.hpp"
 #include "stat.hpp"
 #include "tui.hpp"
-
-constexpr int BAR_PLOT_ROWS = 25;
 
 inline void poc_cpu_times_bar_plot(void)
 {
@@ -24,15 +21,34 @@ inline void poc_cpu_times_bar_plot(void)
 
   tui_enter();
   tui_clear();
-  auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
 
+  auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
   ScreenBuffer screen_buffer(terminal_rows, terminal_cols);
 
   Stat last_stat;
+  double total_memory = 0;
   RingBuffer<double> cpu_load_rb(50000);
   RingBuffer<double> mem_available_rb(50000);
 
-  double total_memory = 0;
+  BarPlotWindow cpu_load_w{
+      .row_offset = 0,
+      .col_offset = 0,
+      .row_count = static_cast<size_t>(terminal_rows / 2),
+      .col_count = terminal_cols,
+      .title = "cpu load",
+      .ymin = 0.,
+      .ymax = 1.,
+      .data_rb = cpu_load_rb};
+
+  BarPlotWindow available_mem_w{
+      .row_offset = static_cast<size_t>(terminal_rows / 2),
+      .col_offset = 0,
+      .row_count = static_cast<size_t>(terminal_rows / 2),
+      .col_count = terminal_cols,
+      .title = "available memory",
+      .ymin = 0.,
+      .ymax = 1.,
+      .data_rb = mem_available_rb};
 
   std::chrono::time_point next = std::chrono::steady_clock::now();
   while (true)
@@ -57,27 +73,14 @@ inline void poc_cpu_times_bar_plot(void)
     {
       mem_available_rb.push(static_cast<double>(meminfo->mem_available_kb));
       total_memory = meminfo->mem_total_kb;
+      available_mem_w.ymax = total_memory;
     }
 
-    auto [terminal_rows, terminal_cols] = tui_get_size(); // move to an eventual tui_render() call
-
-    build_window_frame(screen_buffer.back_buf(), 0, 0, BAR_PLOT_ROWS, terminal_cols, "cpu load");
-    build_bar_plot(screen_buffer.back_buf(), 1, 1, BAR_PLOT_ROWS - 2, terminal_cols - 2, 0., 1., cpu_load_rb);
-
-    build_window_frame(screen_buffer.back_buf(), terminal_rows / 2, 0, BAR_PLOT_ROWS, terminal_cols, "mem available");
-    build_bar_plot(
-        screen_buffer.back_buf(),
-        terminal_rows / 2 + 1,
-        1,
-        BAR_PLOT_ROWS - 2,
-        terminal_cols - 2,
-        0.,
-        total_memory,
-        mem_available_rb);
-
+    draw_bar_plot_window(screen_buffer.back_buf(), cpu_load_w);
+    draw_bar_plot_window(screen_buffer.back_buf(), available_mem_w);
     screen_buffer.draw();
 
-    next += std::chrono::milliseconds(50);
+    next += std::chrono::milliseconds(100);
     std::this_thread::sleep_until(next);
   }
 }
