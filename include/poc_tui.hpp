@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "bar_plot_window.hpp"
+#include "canvas.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
 #include "net_dev.hpp"
@@ -26,6 +27,7 @@ inline void poc_tui(void)
   const Tui tui;
 
   auto [terminal_rows, terminal_cols] = tui.get_size(); // move to an eventual tui_render() call
+  Canvas canvas(terminal_rows, terminal_cols);
   ScreenBuffer screen_buffer(terminal_rows, terminal_cols);
 
   Stat last_stat;

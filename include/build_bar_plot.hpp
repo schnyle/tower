@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "canvas.hpp"
 #include "ring_buffer.hpp"
 
 // We use Unicode block elements to draw plot bars: eight glyphs representing one eighth,
@@ -27,7 +28,7 @@ inline constexpr std::array<std::string_view, 8> UNICODE_BLOCK_ELEMENTS = {
 inline constexpr int BUCKETS_PER_ROW = UNICODE_BLOCK_ELEMENTS.size();
 
 inline void validate_inputs(
-    const std::vector<std::vector<std::string>> &dest,
+    const Canvas &dest,
     const size_t row_offset,
     const size_t col_offset,
     const size_t row_count,
@@ -45,20 +46,23 @@ inline void validate_inputs(
     throw std::invalid_argument("build_bar_plot: cols must be > 0");
   }
 
-  if (dest.size() < row_offset + row_count)
+  if (dest.row_count() < row_offset + row_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})", row_offset, row_count, dest.size());
+        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        row_offset,
+        row_count,
+        dest.row_count());
     throw std::invalid_argument(msg);
   }
 
-  if (dest[row_offset].size() < col_offset + col_count)
+  if (dest.col_count() < col_offset + col_count)
   {
     const auto msg = std::format(
         "build_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
         col_offset,
         col_count,
-        dest[row_offset].size());
+        dest.col_count());
     throw std::invalid_argument(msg);
   }
 
@@ -127,7 +131,7 @@ value_to_column_glyphs(const size_t row_count, const double ymin, const double y
 }
 
 inline void build_bar_plot(
-    std::vector<std::vector<std::string>> &dest,
+    Canvas &dest,
     const size_t row_offset,
     const size_t col_offset,
     const size_t row_count,
@@ -140,7 +144,7 @@ inline void build_bar_plot(
 
   for (size_t row = row_offset; row < row_offset + row_count; ++row)
   {
-    std::fill(dest[row].begin() + col_offset, dest[row].begin() + col_offset + col_count, " ");
+    std::fill(dest.row_begin(row) + col_offset, dest.row_begin(row) + col_offset + col_count, Cell{" "});
   }
 
   if (data_rb.size() == 0)
@@ -154,7 +158,7 @@ inline void build_bar_plot(
     const auto glyphs = value_to_column_glyphs(row_count, ymin, ymax, data_rb[data_index++]);
     for (size_t row_index = 0; row_index < row_count; ++row_index)
     {
-      dest[row_offset + row_index][col_offset + col_index] = glyphs[row_index];
+      dest(row_offset + row_index, col_offset + col_index) = Cell{std::string(glyphs[row_index])};
     }
   }
 };

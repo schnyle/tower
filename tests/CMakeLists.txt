@@ -7,6 +7,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(tower_tests
+  canvas_test.cpp
   ring_buffer_test.cpp
   build_bar_plot_test.cpp
 )

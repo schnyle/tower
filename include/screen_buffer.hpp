@@ -1,21 +1,25 @@
 #pragma once
 
+#include <memory>
 #include <string>
-#include <vector>
+
+#include "canvas.hpp"
 
 class ScreenBuffer
 {
 public:
   ScreenBuffer(unsigned short rows, unsigned short cols);
 
-  std::vector<std::vector<std::string>> &back_buf() { return back_buf_; }
+  Canvas &back_buf() { return *back_; }
 
   void draw();
 
 private:
   const unsigned short rows_;
   const unsigned short cols_;
-  std::vector<std::vector<std::string>> front_buf_;
-  std::vector<std::vector<std::string>> back_buf_;
+
   std::string frame_;
+
+  std::unique_ptr<Canvas> front_;
+  std::unique_ptr<Canvas> back_;
 };

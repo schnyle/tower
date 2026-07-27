@@ -1,14 +1,13 @@
 #include <format>
-#include <stdexcept>
+#include <memory>
 #include <string>
-#include <vector>
 
 #include "screen_buffer.hpp"
 
 ScreenBuffer::ScreenBuffer(unsigned short rows, unsigned short cols) : rows_(rows), cols_(cols)
 {
-  front_buf_ = std::vector<std::vector<std::string>>(rows_, std::vector<std::string>(cols_, " "));
-  back_buf_ = std::vector<std::vector<std::string>>(rows_, std::vector<std::string>(cols_, " "));
+  front_ = std::make_unique<Canvas>(rows, cols);
+  back_ = std::make_unique<Canvas>(rows, cols);
 
   const int estimated_frame_size = rows_ * (cols_ * 2 + 2);
   frame_.reserve(estimated_frame_size);
@@ -25,7 +24,7 @@ void ScreenBuffer::draw()
   {
     for (unsigned short j = 0; j < cols_; ++j)
     {
-      if (back_buf_[i][j] == front_buf_[i][j])
+      if ((*back_)(i, j) == (*front_)(i, j))
       {
         continue;
       }
@@ -34,7 +33,7 @@ void ScreenBuffer::draw()
       {
         frame_ += std::format(CURSOR_POSITION_FMT, i + 1, j + 1);
       }
-      frame_ += back_buf_[i][j];
+      frame_ += (*back_)(i, j).value;
       last_written_i = i;
       last_written_j = j;
     }
@@ -43,5 +42,5 @@ void ScreenBuffer::draw()
   fputs(frame_.c_str(), stdout);
   fflush(stdout);
 
-  std::swap(front_buf_, back_buf_);
+  std::swap(front_, back_);
 }

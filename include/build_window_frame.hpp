@@ -5,10 +5,12 @@
 #include <string>
 #include <vector>
 
+#include "canvas.hpp"
+
 static constexpr int NAME_OFFSET = 2;
 
 inline void validate_inputs(
-    const std::vector<std::vector<std::string>> &dest,
+    Canvas &dest,
     const size_t row_offset,
     const size_t col_offset,
     const size_t row_count,
@@ -24,60 +26,65 @@ inline void validate_inputs(
     throw std::invalid_argument("build_bar_plot: cols must be > 0");
   }
 
-  if (dest.size() < row_offset + row_count)
+  if (dest.row_count() < row_offset + row_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})", row_offset, row_count, dest.size());
+        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        row_offset,
+        row_count,
+        dest.row_count());
     throw std::invalid_argument(msg);
   }
 
-  if (dest[row_offset].size() < col_offset + col_count)
+  if (dest.col_count() < col_offset + col_count)
   {
     const auto msg = std::format(
         "build_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
         col_offset,
         col_count,
-        dest[row_offset].size());
+        dest.col_count());
     throw std::invalid_argument(msg);
   }
 }
 
 inline void build_window_frame(
-    std::vector<std::vector<std::string>> &dest,
+    Canvas &canvas,
     const size_t row_offset,
     const size_t col_offset,
     const size_t row_count,
     const size_t col_count,
     const std::string &name = "")
 {
-  validate_inputs(dest, row_offset, col_offset, row_count, col_count);
+  validate_inputs(canvas, row_offset, col_offset, row_count, col_count);
 
   // top & bottom
   for (size_t col = col_offset; col < col_offset + col_count; ++col)
   {
-    dest[row_offset][col] = "─";
-    dest[row_offset + row_count - 1][col] = "─";
+    canvas(row_offset, col) = Cell{"─"};
+    canvas(row_offset + row_count - 1, col) = Cell{"─"};
   }
 
   // left & right
   for (size_t row = row_offset; row < row_offset + row_count; ++row)
   {
-    dest[row][col_offset] = "│";
-    dest[row][col_offset + col_count - 1] = "│";
+    canvas(row, col_offset) = Cell{"│"};
+    canvas(row, col_offset + col_count - 1) = Cell{"│"};
   }
 
   // corners
-  dest[row_offset][col_offset] = "┌";
-  dest[row_offset + row_count - 1][col_offset] = "└";
-  dest[row_offset][col_offset + col_count - 1] = "┐";
-  dest[row_offset + row_count - 1][col_offset + col_count - 1] = "┘";
+  canvas(row_offset, col_offset) = Cell{"┌"};
+  canvas(row_offset + row_count - 1, col_offset) = Cell{"└"};
+  canvas(row_offset, col_offset + col_count - 1) = Cell{"┐"};
+  canvas(row_offset + row_count - 1, col_offset + col_count - 1) = Cell{"┘"};
 
   // title
-  auto &header = dest[row_offset];
   if (name != "" && col_count > name.size() + 3)
   {
-    header[col_offset + NAME_OFFSET] = " ";
-    std::copy(name.begin(), name.end(), header.begin() + col_offset + NAME_OFFSET + 1);
-    header[col_offset + NAME_OFFSET + name.size() + 1] = " ";
+    canvas(row_offset, col_offset + NAME_OFFSET) = Cell{" "};
+    for (size_t i = 0; i < name.size(); ++i)
+    {
+      canvas(row_offset, col_offset + NAME_OFFSET + i + 1) = Cell{std::string(1, name[i])};
+    }
+    canvas(row_offset, col_offset + NAME_OFFSET + name.size() + 1) = Cell{" "};
   }
 }
