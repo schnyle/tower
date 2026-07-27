@@ -5,10 +5,10 @@
 
 #include "canvas.hpp"
 
-class ScreenBuffer
+class FrameBuffer
 {
 public:
-  ScreenBuffer(unsigned short rows, unsigned short cols);
+  FrameBuffer(unsigned short rows, unsigned short cols);
 
   Canvas &back_buf() { return *back_; }
 

@@ -2,9 +2,9 @@
 #include <memory>
 #include <string>
 
-#include "screen_buffer.hpp"
+#include "frame_buffer.hpp"
 
-ScreenBuffer::ScreenBuffer(unsigned short rows, unsigned short cols) : rows_(rows), cols_(cols)
+FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols) : rows_(rows), cols_(cols)
 {
   front_ = std::make_unique<Canvas>(rows, cols);
   back_ = std::make_unique<Canvas>(rows, cols);
@@ -13,7 +13,7 @@ ScreenBuffer::ScreenBuffer(unsigned short rows, unsigned short cols) : rows_(row
   frame_.reserve(estimated_frame_size);
 }
 
-void ScreenBuffer::draw()
+void FrameBuffer::draw()
 {
   static constexpr std::string CURSOR_POSITION_FMT = "\033[{};{}H";
   frame_.clear();

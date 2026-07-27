@@ -11,11 +11,11 @@
 
 #include "bar_plot_window.hpp"
 #include "canvas.hpp"
+#include "frame_buffer.hpp"
 #include "logger.hpp"
 #include "meminfo.hpp"
 #include "net_dev.hpp"
 #include "ring_buffer.hpp"
-#include "screen_buffer.hpp"
 #include "stat.hpp"
 #include "tui.hpp"
 
@@ -28,7 +28,7 @@ inline void poc_tui(void)
 
   auto [terminal_rows, terminal_cols] = tui.get_size(); // move to an eventual tui_render() call
   Canvas canvas(terminal_rows, terminal_cols);
-  ScreenBuffer screen_buffer(terminal_rows, terminal_cols);
+  FrameBuffer frame_buffer(terminal_rows, terminal_cols);
 
   Stat last_stat;
   NetDev last_net_dev{-1, -1};
@@ -156,11 +156,11 @@ inline void poc_tui(void)
       last_net_dev_read = now;
     }
 
-    draw_bar_plot_window(screen_buffer.back_buf(), cpu_load_w);
-    draw_bar_plot_window(screen_buffer.back_buf(), available_mem_w);
-    draw_bar_plot_window(screen_buffer.back_buf(), download_w);
-    draw_bar_plot_window(screen_buffer.back_buf(), upload_w);
-    screen_buffer.draw();
+    draw_bar_plot_window(frame_buffer.back_buf(), cpu_load_w);
+    draw_bar_plot_window(frame_buffer.back_buf(), available_mem_w);
+    draw_bar_plot_window(frame_buffer.back_buf(), download_w);
+    draw_bar_plot_window(frame_buffer.back_buf(), upload_w);
+    frame_buffer.draw();
 
     next += std::chrono::milliseconds(100);
     std::this_thread::sleep_until(next);
