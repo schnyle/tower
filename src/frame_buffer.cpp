@@ -33,7 +33,7 @@ void FrameBuffer::draw()
       {
         frame_ += std::format(CURSOR_POSITION_FMT, i + 1, j + 1);
       }
-      frame_ += (*back_)(i, j).value;
+      frame_ += (*back_)(i, j).bytes;
       last_written_i = i;
       last_written_j = j;
     }

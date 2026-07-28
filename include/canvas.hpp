@@ -1,18 +1,37 @@
 #pragma once
 
+#include <cstring>
 #include <format>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct Cell
 {
-  std::string value;
+  static constexpr size_t CELL_CHAR_SIZE = 3;
+
+  char bytes[CELL_CHAR_SIZE + 1];
+
+  Cell() = delete;
+
+  Cell(const std::string_view &s)
+  {
+    if (s.size() > CELL_CHAR_SIZE)
+    {
+      const std::string msg = std::format(
+          "string {} is too wide ({} bytes) for Cell ({} bytes)", s, s.size(), CELL_CHAR_SIZE);
+      throw std::invalid_argument(msg);
+    }
+    std::memset(bytes, 0, sizeof bytes);
+    std::memcpy(bytes, s.data(), s.size());
+  }
+
   bool operator==(const Cell &) const = default;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const Cell &c) { return os << "Cell{" << c.value << "}"; }
+inline std::ostream &operator<<(std::ostream &os, const Cell &c) { return os << "Cell{" << c.bytes << "}"; }
 
 class Canvas
 {

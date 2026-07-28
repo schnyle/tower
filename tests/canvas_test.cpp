@@ -3,6 +3,48 @@
 
 #include "canvas.hpp"
 
+// Cell
+
+// basic
+
+TEST(Cell, CanBeConstructed) { Cell{"x"}; }
+
+TEST(Cell, CanCompare)
+{
+  EXPECT_TRUE(Cell{"x"} == Cell{"x"});
+  EXPECT_FALSE(Cell{"x"} == Cell{"y"});
+}
+
+// input validation
+
+TEST(Cell, CanCreateWithMaxBytes)
+{
+  const std::string s = std::string(Cell::CELL_CHAR_SIZE, 'x');
+  EXPECT_NO_THROW(Cell{s});
+}
+
+TEST(Cell, ThrowsOnTooManyBytes)
+{
+  const std::string s = std::string(Cell::CELL_CHAR_SIZE + 1, 'x');
+  EXPECT_THROW(Cell{s}, std::invalid_argument);
+}
+
+// functionality
+
+TEST(Cell, WritesZeroToUnusedBytes)
+{
+  Cell c{"x"};
+  EXPECT_EQ(c.bytes[0], 'x');
+  for (size_t i = 1; i <= Cell::CELL_CHAR_SIZE; ++i)
+  {
+    EXPECT_EQ(c.bytes[i], '\0');
+  }
+}
+
+// TODO: Cell: ThrowsOnMultipleCodePoints
+
+// Canvas
+
 // basic
 
 TEST(Canvas, CanBeConstructedWithDimensions)
