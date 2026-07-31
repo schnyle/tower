@@ -6,7 +6,8 @@ int main(void)
   try
   {
     // poc_basic_text();
-    poc_tui();
+    PocTui poc_tui;
+    poc_tui.run();
   }
   catch (const std::exception &e)
   {
