@@ -15,10 +15,10 @@ endif()
 add_library(tower_lib STATIC
   src/tui.cpp
   src/frame_buffer.cpp
-  src/loadavg.cpp
-  src/meminfo.cpp
-  src/net_dev.cpp
-  src/stat.cpp
+  src/parsers/loadavg.cpp
+  src/parsers/meminfo.cpp
+  src/parsers/net_dev.cpp
+  src/parsers/stat.cpp
 )
 target_include_directories(tower_lib PUBLIC include)
 target_compile_options(tower_lib PUBLIC -Wall -Wextra -ffile-prefix-map=${CMAKE_SOURCE_DIR}/=)

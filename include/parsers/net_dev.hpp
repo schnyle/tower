@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <iosfwd>
 #include <optional>
 
 struct NetDev
@@ -15,4 +16,8 @@ struct NetDev
   }
 };
 
-std::optional<NetDev> get_proc_net_dev();
+struct NetDevParser
+{
+  using Data = NetDev;
+  static std::optional<Data> parse(std::istream &);
+};

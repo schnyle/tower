@@ -1,26 +1,17 @@
 #include <charconv>
-#include <fstream>
 #include <iostream>
 #include <string>
 
-#include "loadavg.hpp"
+#include "parsers/file.hpp"
+#include "parsers/loadavg.hpp"
 
-std::optional<LoadAvg> get_proc_loadavg()
+std::optional<LoadAvg> LoadAvgParser::parse(std::istream &is)
 {
-  static const std::string PROC_LOADAVG_PATH = "/proc/loadavg";
-
-  std::ifstream file(PROC_LOADAVG_PATH);
-  if (!file)
-  {
-    std::cerr << "failed to open file " << PROC_LOADAVG_PATH << "\n";
-    return std::nullopt;
-  }
-
   double load_avg_1_min, load_avg_5_min, load_avg_15_min;
   int runnable_procs, total_procs, last_pid_created;
   std::string proc_str;
 
-  if (!(file >> load_avg_1_min >> load_avg_5_min >> load_avg_15_min >> proc_str >> last_pid_created))
+  if (!(is >> load_avg_1_min >> load_avg_5_min >> load_avg_15_min >> proc_str >> last_pid_created))
   {
     return std::nullopt;
   }

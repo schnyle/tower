@@ -1,13 +1,12 @@
 #include <charconv>
 #include <cstdio>
-#include <fstream>
-#include <iostream>
+#include <istream>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
 
-#include "meminfo.hpp"
+#include "parsers/meminfo.hpp"
 
 struct MemInfoItem
 {
@@ -42,21 +41,13 @@ std::optional<MemInfoItem> parse_meminfo_line(std::string_view sv)
   return MemInfoItem{key, value};
 }
 
-std::optional<MemInfo> get_proc_meminfo()
+std::optional<MemInfo> MemInfoParser::parse(std::istream &is)
 {
-  static const std::string PROC_MEMINFO_PATH = "/proc/meminfo";
   static const std::set<std::string> KEYS = {"MemTotal", "MemFree", "MemAvailable", "SwapTotal", "SwapFree"};
-
-  std::ifstream file(PROC_MEMINFO_PATH);
-  if (!file)
-  {
-    std::cerr << "failed to open file " << PROC_MEMINFO_PATH << "\n";
-    return std::nullopt;
-  }
 
   std::string line;
   MemInfo meminfo;
-  while (std::getline(file, line))
+  while (std::getline(is, line))
   {
     const auto item = parse_meminfo_line(line);
     if (!item)

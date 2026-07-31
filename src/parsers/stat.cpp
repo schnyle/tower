@@ -1,11 +1,11 @@
 #include <charconv>
-#include <fstream>
-#include <iostream>
+#include <istream>
 #include <optional>
 #include <string>
 #include <string_view>
 
-#include "stat.hpp"
+#include "parsers/file.hpp"
+#include "parsers/stat.hpp"
 
 std::string_view next_token(std::string_view &sv)
 {
@@ -25,21 +25,12 @@ std::string_view next_token(std::string_view &sv)
   return token;
 }
 
-std::optional<Stat> get_proc_stat()
+std::optional<Stat> StatParser::parse(std::istream &is)
 {
-  static const std::string PROC_STAT_PATH = "/proc/stat";
-
-  std::ifstream file(PROC_STAT_PATH);
-  if (!file)
-  {
-    std::cerr << "failed to open file " << PROC_STAT_PATH << "\n";
-    return std::nullopt;
-  }
-
   std::string line;
   std::string_view key, tok;
   Stat stat;
-  while (std::getline(file, line))
+  while (std::getline(is, line))
   {
     std::string_view line_sv(line);
     key = next_token(line_sv);

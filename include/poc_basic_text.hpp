@@ -6,11 +6,12 @@
 #include <thread>
 #include <unistd.h>
 
-#include "loadavg.hpp"
+#include "collect.hpp"
 #include "logger.hpp"
-#include "meminfo.hpp"
-#include "net_dev.hpp"
-#include "stat.hpp"
+#include "parsers/loadavg.hpp"
+#include "parsers/meminfo.hpp"
+#include "parsers/net_dev.hpp"
+#include "parsers/stat.hpp"
 #include "tui.hpp"
 
 inline void poc_basic_text(void)
@@ -32,19 +33,19 @@ inline void poc_basic_text(void)
     }
 
     std::chrono::time_point start = std::chrono::steady_clock::now();
-    if (const auto meminfo = get_proc_meminfo())
+    if (const auto meminfo = collect<MemInfoParser>("/proc/meminfo"))
     {
       meminfo->print();
       printf("\n");
     };
 
-    if (const auto loadavg = get_proc_loadavg())
+    if (const auto loadavg = collect<LoadAvgParser>("/proc/loadavg"))
     {
       loadavg->print();
       printf("\n");
     }
 
-    if (const auto stat = get_proc_stat())
+    if (const auto stat = collect<StatParser>("/proc/stat"))
     {
       CpuTimes delta = stat->cpu_times - last_stat.cpu_times;
       long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
@@ -58,7 +59,7 @@ inline void poc_basic_text(void)
       last_stat = *stat;
     }
 
-    if (const auto net_dev = get_proc_net_dev())
+    if (const auto net_dev = collect<NetDevParser>("/proc/net/dev"))
     {
       net_dev->print();
       printf("\n");

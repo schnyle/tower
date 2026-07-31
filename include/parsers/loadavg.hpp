@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <iosfwd>
 #include <optional>
 
 struct LoadAvg
@@ -23,4 +24,8 @@ struct LoadAvg
   }
 };
 
-std::optional<LoadAvg> get_proc_loadavg();
+struct LoadAvgParser
+{
+  using Data = LoadAvg;
+  static std::optional<Data> parse(std::istream &);
+};

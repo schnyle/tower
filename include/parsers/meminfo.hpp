@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <iosfwd>
 #include <optional>
 
 struct MemInfo
@@ -21,4 +22,8 @@ struct MemInfo
   }
 };
 
-std::optional<MemInfo> get_proc_meminfo();
+struct MemInfoParser
+{
+  using Data = MemInfo;
+  static std::optional<Data> parse(std::istream &);
+};

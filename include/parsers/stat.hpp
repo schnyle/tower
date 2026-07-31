@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <istream>
 #include <optional>
 
 struct CpuTimes
@@ -54,4 +55,8 @@ struct Stat
   };
 };
 
-std::optional<Stat> get_proc_stat();
+struct StatParser
+{
+  using Data = Stat;
+  static std::optional<Data> parse(std::istream &);
+};

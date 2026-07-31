@@ -1,10 +1,9 @@
 #include <charconv>
-#include <fstream>
-#include <iostream>
+#include <istream>
 #include <string>
 #include <string_view>
 
-#include "net_dev.hpp"
+#include "parsers/net_dev.hpp"
 
 // duplicate in stat.cpp
 inline std::string_view next_token(std::string_view &sv)
@@ -25,23 +24,14 @@ inline std::string_view next_token(std::string_view &sv)
   return token;
 }
 
-std::optional<NetDev> get_proc_net_dev()
+std::optional<NetDev> NetDevParser::parse(std::istream &is)
 {
-  static const std::string NET_DEV_PATH = "/proc/net/dev";
-
-  std::ifstream file(NET_DEV_PATH);
-  if (!file)
-  {
-    std::cerr << "failed to open file " << NET_DEV_PATH << "\n";
-    return std::nullopt;
-  }
-
   std::string line;
   std::string_view key, tok;
   long long rx = 0;
   long long tx = 0;
   NetDev net_dev;
-  while (std::getline(file, line))
+  while (std::getline(is, line))
   {
     std::string_view line_sv(line);
     key = next_token(line_sv);

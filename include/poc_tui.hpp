@@ -11,12 +11,13 @@
 
 #include "bar_plot_window.hpp"
 #include "canvas.hpp"
+#include "collect.hpp"
 #include "frame_buffer.hpp"
 #include "logger.hpp"
-#include "meminfo.hpp"
-#include "net_dev.hpp"
+#include "parsers/meminfo.hpp"
+#include "parsers/net_dev.hpp"
+#include "parsers/stat.hpp"
 #include "ring_buffer.hpp"
-#include "stat.hpp"
 #include "tui.hpp"
 
 inline void poc_tui(void)
@@ -100,7 +101,7 @@ inline void poc_tui(void)
       break;
     }
 
-    if (const auto stat = get_proc_stat())
+    if (const auto stat = collect<StatParser>("/proc/stat"))
     {
       CpuTimes delta = stat->cpu_times - last_stat.cpu_times;
       long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
@@ -112,14 +113,14 @@ inline void poc_tui(void)
       last_stat = *stat;
     }
 
-    if (const auto meminfo = get_proc_meminfo())
+    if (const auto meminfo = collect<MemInfoParser>("/proc/meminfo"))
     {
       mem_available_rb.push(static_cast<double>(meminfo->mem_available_kb));
       total_memory = meminfo->mem_total_kb;
       available_mem_w.ymax = total_memory;
     }
 
-    if (const auto net_dev = get_proc_net_dev())
+    if (const auto net_dev = collect<NetDevParser>("/proc/net/dev"))
     {
       auto now = std::chrono::steady_clock::now();
       double elapsed_seconds = std::chrono::duration<double>(now - last_net_dev_read).count();
