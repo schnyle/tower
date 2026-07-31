@@ -18,8 +18,9 @@ private:
   const unsigned short rows_;
   const unsigned short cols_;
 
-  std::string frame_;
-
   std::unique_ptr<Canvas> front_;
   std::unique_ptr<Canvas> back_;
+
+  std::string frame_;
+  Color current_color = Color::white();
 };

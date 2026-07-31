@@ -37,7 +37,7 @@ RingBuffer<double> make_ring_buffer(std::vector<double> values)
 TEST(BuildBarPlot, CanCallMainFunction)
 {
   auto canvas = make_canvas(3, 5);
-  build_bar_plot(canvas, 0, 0, 3, 5, 0., 100., RingBuffer<double>(1));
+  build_bar_plot(canvas, 0, 0, 3, 5, 0., 100., Color::white(), RingBuffer<double>(1));
 }
 
 // input validation
@@ -45,32 +45,37 @@ TEST(BuildBarPlot, CanCallMainFunction)
 TEST(BuildBarPlot, ThrowsIfZeroHeight)
 {
   auto canvas = make_canvas(3, 5);
-  EXPECT_THROW(build_bar_plot(canvas, 0, 0, 0, 5, 0., 100., RingBuffer<double>(1)), std::invalid_argument);
+  EXPECT_THROW(
+      build_bar_plot(canvas, 0, 0, 0, 5, 0., 100., Color::white(), RingBuffer<double>(1)), std::invalid_argument);
 }
 
 TEST(BuildBarPlot, ThrowsIfZeroWidth)
 {
 
   auto canvas = make_canvas(3, 5);
-  EXPECT_THROW(build_bar_plot(canvas, 0, 0, 3, 0, 0., 100., RingBuffer<double>(1)), std::invalid_argument);
+  EXPECT_THROW(
+      build_bar_plot(canvas, 0, 0, 3, 0, 0., 100., Color::white(), RingBuffer<double>(1)), std::invalid_argument);
 }
 
 TEST(BuildBarPlot, ThrowsIfRowRangeExceedsCanvas)
 {
   auto canvas = make_canvas(3, 5);
-  EXPECT_THROW(build_bar_plot(canvas, 1, 0, 3, 5, 0., 100., RingBuffer<double>(1)), std::invalid_argument);
+  EXPECT_THROW(
+      build_bar_plot(canvas, 1, 0, 3, 5, 0., 100., Color::white(), RingBuffer<double>(1)), std::invalid_argument);
 }
 
 TEST(BuildBarPlot, ThrowsIfColRangeExceedsCanvas)
 {
   auto canvas = make_canvas(3, 5);
-  EXPECT_THROW(build_bar_plot(canvas, 0, 1, 3, 5, 0., 100., RingBuffer<double>(1)), std::invalid_argument);
+  EXPECT_THROW(
+      build_bar_plot(canvas, 0, 1, 3, 5, 0., 100., Color::white(), RingBuffer<double>(1)), std::invalid_argument);
 }
 
 TEST(BuildBarPlot, ThrowsIfNotYMinLessThanYMax)
 {
   auto canvas = make_canvas(3, 5);
-  EXPECT_THROW(build_bar_plot(canvas, 0, 0, 3, 5, 100., 0., RingBuffer<double>(1)), std::invalid_argument);
+  EXPECT_THROW(
+      build_bar_plot(canvas, 0, 0, 3, 5, 100., 0., Color::white(), RingBuffer<double>(1)), std::invalid_argument);
 }
 
 // basic result validation
@@ -78,7 +83,7 @@ TEST(BuildBarPlot, ThrowsIfNotYMinLessThanYMax)
 TEST(BuildBarPlot, ResultIsWhiteSpaceIfNoData)
 {
   auto canvas = make_canvas(3, 5, "X");
-  build_bar_plot(canvas, 0, 0, 3, 3, 0., 100., RingBuffer<double>(1));
+  build_bar_plot(canvas, 0, 0, 3, 3, 0., 100., Color::white(), RingBuffer<double>(1));
   for (size_t i = 0; i < 3; ++i)
   {
     for (size_t j = 0; j < 3; ++j)
@@ -92,7 +97,7 @@ TEST(BuildBarPlot, WritesOnlyToAssignedRegion)
 {
   auto canvas = make_canvas(5, 7, "X");
   const auto rb = make_ring_buffer({100., 100., 100., 100., 100.});
-  build_bar_plot(canvas, 1, 1, 3, 5, 0., 100., rb);
+  build_bar_plot(canvas, 1, 1, 3, 5, 0., 100., Color::white(), rb);
 
   // interior: every cell in the specified region got written
   for (size_t row = 1; row < 4; ++row)
@@ -138,7 +143,7 @@ TEST_P(BuildBarPlotParam, ProducesExpectedGrid)
   const auto &c = GetParam();
   auto canvas = make_canvas(c.row_count, c.col_count);
   const auto rb = make_ring_buffer(c.values);
-  build_bar_plot(canvas, 0, 0, c.row_count, c.col_count, c.ymin, c.ymax, rb);
+  build_bar_plot(canvas, 0, 0, c.row_count, c.col_count, c.ymin, c.ymax, Color::white(), rb);
 
   for (size_t row = 0; row < c.row_count; ++row)
   {

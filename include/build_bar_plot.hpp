@@ -138,6 +138,7 @@ inline void build_bar_plot(
     const size_t col_count,
     const double ymin,
     const double ymax,
+    const Color color,
     const RingBuffer<double> &data_rb)
 {
   validate_inputs(dest, row_offset, col_offset, row_count, col_count, ymin, ymax);
@@ -158,7 +159,7 @@ inline void build_bar_plot(
     const auto glyphs = value_to_column_glyphs(row_count, ymin, ymax, data_rb[data_index++]);
     for (size_t row_index = 0; row_index < row_count; ++row_index)
     {
-      dest(row_offset + row_index, col_offset + col_index) = Cell{std::string(glyphs[row_index])};
+      dest(row_offset + row_index, col_offset + col_index) = Cell{std::string(glyphs[row_index]), color};
     }
   }
 };

@@ -14,6 +14,7 @@ struct BarPlotWindow
   size_t row_offset, col_offset, row_count, col_count;
   std::string title;
   double ymin, ymax;
+  Color color;
   std::function<std::string(double)> format_value;
   const RingBuffer<double> &data_rb;
 };
@@ -28,5 +29,5 @@ inline void draw_bar_plot_window(Canvas &canvas, const BarPlotWindow &w)
 
   build_window_frame(canvas, w.row_offset, w.col_offset, w.row_count, w.col_count, heading);
   build_bar_plot(
-      canvas, w.row_offset + 1, w.col_offset + 1, w.row_count - 2, w.col_count - 2, w.ymin, w.ymax, w.data_rb);
+      canvas, w.row_offset + 1, w.col_offset + 1, w.row_count - 2, w.col_count - 2, w.ymin, w.ymax, w.color, w.data_rb);
 }

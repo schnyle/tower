@@ -15,7 +15,8 @@ FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols) : rows_(rows)
 
 void FrameBuffer::draw()
 {
-  static constexpr std::string CURSOR_POSITION_FMT = "\033[{};{}H";
+  static constexpr std::string_view CURSOR_POSITION_FMT = "\033[{};{}H";
+  static constexpr std::string_view CURSOR_COLOR_FMT = "\033[38;2;{};{};{}m";
   frame_.clear();
 
   int last_written_i = -1;
@@ -33,6 +34,14 @@ void FrameBuffer::draw()
       {
         frame_ += std::format(CURSOR_POSITION_FMT, i + 1, j + 1);
       }
+
+      const Color color = (*back_)(i, j).color;
+      if (color != current_color)
+      {
+        frame_ += std::format(CURSOR_COLOR_FMT, color.r, color.g, color.b);
+        current_color = color;
+      }
+
       frame_ += (*back_)(i, j).bytes;
       last_written_i = i;
       last_written_j = j;

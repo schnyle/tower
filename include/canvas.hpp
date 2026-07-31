@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <format>
 #include <iostream>
@@ -8,15 +9,33 @@
 #include <string_view>
 #include <vector>
 
+struct Color
+{
+  uint8_t r, g, b;
+
+  Color() = delete;
+  constexpr Color(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
+
+  bool operator==(const Color &) const = default;
+
+  static constexpr Color white() { return {255, 255, 255}; }
+  static constexpr Color red() { return {255, 0, 0}; }
+  static constexpr Color green() { return {0, 255, 0}; }
+  static constexpr Color blue() { return {0, 0, 255}; }
+  static constexpr Color purple() { return {128, 0, 128}; }
+};
+
 struct Cell
 {
   static constexpr size_t CELL_CHAR_SIZE = 3;
 
   char bytes[CELL_CHAR_SIZE + 1];
+  Color color;
 
   Cell() = delete;
 
-  Cell(const std::string_view &s)
+  Cell(const std::string_view &s) : Cell(s, Color::white()) {}
+  Cell(const std::string_view &s, const Color color) : color(color)
   {
     if (s.size() > CELL_CHAR_SIZE)
     {

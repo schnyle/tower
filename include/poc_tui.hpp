@@ -51,6 +51,7 @@ inline void poc_tui(void)
       .title = "cpu load",
       .ymin = 0.,
       .ymax = 1.,
+      .color = Color::red(),
       .format_value = [](double v) { return std::format("{:.1f}%", v * 100); },
       .data_rb = cpu_load_rb};
 
@@ -62,6 +63,7 @@ inline void poc_tui(void)
       .title = "available memory",
       .ymin = 0.,
       .ymax = 1.,
+      .color = Color::green(),
       .format_value = [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
       .data_rb = mem_available_rb};
 
@@ -73,6 +75,7 @@ inline void poc_tui(void)
       .title = "download",
       .ymin = 0.,
       .ymax = 1.,
+      .color = Color::blue(),
       .format_value = [](double v) { return std::format("{:.1f} B/s", v); },
       .data_rb = download_rb};
 
@@ -84,6 +87,7 @@ inline void poc_tui(void)
       .title = "upload",
       .ymin = 0.,
       .ymax = 1.,
+      .color = Color::purple(),
       .format_value = [](double v) { return std::format("{:.1f} B/s", v); },
       .data_rb = upload_rb};
 
