@@ -130,3 +130,41 @@ TEST(Canvas, CanReadWriteRows)
   EXPECT_EQ(c(1, 0), Cell{"C"});
   EXPECT_EQ(c(1, 1), Cell{"D"});
 }
+
+// write operations
+
+TEST(Canvas, CopyNWritesString)
+{
+  Canvas c(3, 3);
+  const std::string row1 = "abc";
+  const std::string row2 = "yz";
+
+  c.copy_n(0, 0, row1);
+  c.copy_n(2, 1, row2);
+
+  EXPECT_EQ(c(0, 0), Cell{"a"});
+  EXPECT_EQ(c(0, 1), Cell{"b"});
+  EXPECT_EQ(c(0, 2), Cell{"c"});
+  EXPECT_EQ(c(1, 0), Cell{" "});
+  EXPECT_EQ(c(1, 1), Cell{" "});
+  EXPECT_EQ(c(1, 2), Cell{" "});
+  EXPECT_EQ(c(2, 0), Cell{" "});
+  EXPECT_EQ(c(2, 1), Cell{"y"});
+  EXPECT_EQ(c(2, 2), Cell{"z"});
+}
+
+TEST(Canvas, CopyNThrowsOnCountExceedsSrcSize)
+{
+  Canvas c(3, 3);
+  const std::string row = "abc";
+
+  EXPECT_THROW(c.copy_n(0, 0, row, 4), std::invalid_argument);
+}
+
+TEST(Canvas, CopyNThrowsOnStringExceedsColCount)
+{
+  Canvas c(3, 3);
+  const std::string row = "abcd";
+
+  EXPECT_THROW(c.copy_n(0, 0, row), std::out_of_range);
+}

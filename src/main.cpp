@@ -1,8 +1,12 @@
 #include "poc_basic_text.hpp"
 #include "poc_tui.hpp"
 
+#include "logger.hpp"
+
 int main(void)
 {
+  LOG_INFO("");
+
   try
   {
     // poc_basic_text();

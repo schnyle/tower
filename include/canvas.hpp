@@ -86,6 +86,33 @@ public:
     return buf_.begin() + ((row + 1) * col_count());
   }
 
+  void copy_n(const size_t row, const size_t col, const std::string_view src, size_t src_count = std::string_view::npos)
+  {
+    validate_row(row);
+    validate_col(col);
+
+    if (src_count == std::string_view::npos)
+    {
+      src_count = src.size();
+    }
+
+    if (src_count > src.size())
+    {
+      throw std::invalid_argument(
+          std::format("Canvas::copy_n: count ({}) exceeds src size ({})", src_count, src.size()));
+    }
+
+    if (col + src_count > col_count_)
+    {
+      throw std::out_of_range(std::format("Canvas: col ({}) + count ({}) exceeds {} cols", col, src_count, col_count_));
+    }
+
+    for (size_t i = 0; i < src_count; ++i)
+    {
+      operator()(row, col + i) = Cell{src.substr(i, 1)};
+    }
+  }
+
 private:
   const size_t row_count_;
   const size_t col_count_;

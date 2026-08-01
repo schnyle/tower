@@ -13,12 +13,16 @@
 #include "canvas.hpp"
 #include "collect.hpp"
 #include "frame_buffer.hpp"
+#include "get_procs_data.hpp"
 #include "logger.hpp"
 #include "parsers/meminfo.hpp"
 #include "parsers/net_dev.hpp"
 #include "parsers/stat.hpp"
+#include "proc_list_window.hpp"
 #include "ring_buffer.hpp"
 #include "tui.hpp"
+
+static constexpr int INTERVAL_MS = 100;
 
 class PocTui
 {
@@ -29,7 +33,7 @@ public:
             .row_offset = 0,
             .col_offset = 0,
             .row_count = static_cast<size_t>(tui_size_.rows / 3),
-            .col_count = tui_size_.cols,
+            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
             .title = "cpu load",
             .ymin = 0.,
             .ymax = 1.,
@@ -40,7 +44,7 @@ public:
             .row_offset = static_cast<size_t>(tui_size_.rows / 3),
             .col_offset = 0,
             .row_count = static_cast<size_t>(tui_size_.rows / 3),
-            .col_count = tui_size_.cols,
+            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
             .title = "available memory",
             .ymin = 0.,
             .ymax = 1.,
@@ -51,7 +55,7 @@ public:
             .row_offset = static_cast<size_t>(tui_size_.rows * 2 / 3),
             .col_offset = 0,
             .row_count = static_cast<size_t>(tui_size_.rows / 3 / 2),
-            .col_count = tui_size_.cols,
+            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
             .title = "download",
             .ymin = 0.,
             .ymax = 1.,
@@ -62,23 +66,36 @@ public:
             .row_offset = static_cast<size_t>((tui_size_.rows * 2 / 3) + tui_size_.rows / 3 / 2),
             .col_offset = 0,
             .row_count = static_cast<size_t>(tui_size_.rows / 3 / 2),
-            .col_count = tui_size_.cols,
+            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
             .title = "upload",
             .ymin = 0.,
             .ymax = 1.,
             .color = Color::purple(),
             .format_value = [](double v) { return std::format("{:.1f} B/s", v); },
-            .data_rb = upload_rb_}
+            .data_rb = upload_rb_},
+        procs_w_{
+            .row_offset = 0,
+            .col_offset = static_cast<size_t>(tui_size_.cols * 3 / 4),
+            .row_count = tui_size_.rows,
+            .col_count = static_cast<size_t>(tui_size_.cols * 1 / 4),
+            .title = "processes",
+            .data = proc_data_,
+        }
   {
-    LOG_INFO("starting tower");
-    LOG_DEBUG("starting tower in DEBUG mode");
+    LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
 
   void run()
   {
+    std::chrono::time_point start = std::chrono::steady_clock::now();
+    std::chrono::time_point now = std::chrono::steady_clock::now();
     std::chrono::time_point next = std::chrono::steady_clock::now();
+
     while (true)
     {
+      start = std::chrono::steady_clock::now();
+      next = start + std::chrono::milliseconds(INTERVAL_MS); // TODO: handle long drift, e.g. process stalls for minutes
+
       char c;
       if (read(STDIN_FILENO, &c, 1) == 1 && c == 'q')
       {
@@ -88,14 +105,21 @@ public:
       update_stat();
       update_meminfo();
       update_net_dev();
+      update_proc_data();
 
       draw_bar_plot_window(frame_buffer_.back_buf(), cpu_load_w_);
       draw_bar_plot_window(frame_buffer_.back_buf(), available_mem_w_);
       draw_bar_plot_window(frame_buffer_.back_buf(), download_w_);
       draw_bar_plot_window(frame_buffer_.back_buf(), upload_w_);
+      draw_proc_window(frame_buffer_.back_buf(), procs_w_);
       frame_buffer_.draw();
 
-      next += std::chrono::milliseconds(100);
+      if ((now = std::chrono::steady_clock::now()) > next)
+      {
+        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+        LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
+      }
+
       std::this_thread::sleep_until(next);
     }
   }
@@ -118,10 +142,13 @@ private:
   std::deque<double> download_history_;
   std::deque<double> upload_history_;
 
+  std::vector<ProcData> proc_data_;
+
   BarPlotWindow cpu_load_w_;
   BarPlotWindow available_mem_w_;
   BarPlotWindow download_w_;
   BarPlotWindow upload_w_;
+  ProcListWindow procs_w_;
 
   void update_stat()
   {
@@ -189,6 +216,17 @@ private:
 
       last_net_dev_ = *net_dev;
       last_net_dev_read_ = now;
+    }
+  }
+
+  void update_proc_data()
+  {
+    auto proc_data = get_procs_data();
+    proc_data_.clear();
+    proc_data_.reserve(proc_data.size());
+    for (const auto &d : proc_data)
+    {
+      proc_data_.push_back(d);
     }
   }
 };
