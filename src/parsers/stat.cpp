@@ -7,24 +7,6 @@
 #include "parsers/file.hpp"
 #include "parsers/stat.hpp"
 
-std::string_view next_token(std::string_view &sv)
-{
-  const size_t start = sv.find_first_not_of(' ');
-  if (start == std::string_view::npos)
-  {
-    sv = {};
-    return sv;
-  }
-
-  sv.remove_prefix(start);
-
-  const size_t end = sv.find_first_of(' ');
-  const std::string_view token = sv.substr(0, end);
-  sv.remove_prefix(end == std::string_view::npos ? sv.size() : end);
-
-  return token;
-}
-
 std::optional<Stat> StatParser::parse(std::istream &is)
 {
   std::string line;
@@ -33,7 +15,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
   while (std::getline(is, line))
   {
     std::string_view line_sv(line);
-    key = next_token(line_sv);
+    key = parse_next_token(line_sv);
     if (key.empty())
     {
       continue;
@@ -56,7 +38,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
 
       for (long *field : fields)
       {
-        const std::string_view tok = next_token(line_sv);
+        const std::string_view tok = parse_next_token(line_sv);
         if (tok.empty())
         {
           break;
@@ -66,7 +48,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
     }
     else if (key == "intr")
     {
-      tok = next_token(line_sv);
+      tok = parse_next_token(line_sv);
       if (!tok.empty())
       {
         std::from_chars(tok.data(), tok.data() + tok.size(), stat.interrupts_serviced_count);
@@ -74,7 +56,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
     }
     else if (key == "ctxt")
     {
-      tok = next_token(line_sv);
+      tok = parse_next_token(line_sv);
       if (!tok.empty())
       {
         std::from_chars(tok.data(), tok.data() + tok.size(), stat.context_switches_count);
@@ -82,7 +64,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
     }
     else if (key == "btime")
     {
-      tok = next_token(line_sv);
+      tok = parse_next_token(line_sv);
       if (!tok.empty())
       {
         std::from_chars(tok.data(), tok.data() + tok.size(), stat.boot_time);
@@ -90,7 +72,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
     }
     else if (key == "procs_running")
     {
-      tok = next_token(line_sv);
+      tok = parse_next_token(line_sv);
       if (!tok.empty())
       {
         std::from_chars(tok.data(), tok.data() + tok.size(), stat.runnable_procs_count);
@@ -98,7 +80,7 @@ std::optional<Stat> StatParser::parse(std::istream &is)
     }
     else if (key == "procs_blocked")
     {
-      tok = next_token(line_sv);
+      tok = parse_next_token(line_sv);
       if (!tok.empty())
       {
         std::from_chars(tok.data(), tok.data() + tok.size(), stat.blocked_procs_count);

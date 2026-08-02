@@ -15,9 +15,12 @@ endif()
 add_library(tower_lib STATIC
   src/tui.cpp
   src/frame_buffer.cpp
+  src/parsers/file.cpp
   src/parsers/loadavg.cpp
   src/parsers/meminfo.cpp
   src/parsers/net_dev.cpp
+  src/parsers/proc_stat.cpp
+  src/parsers/proc_status.cpp
   src/parsers/stat.cpp
 )
 target_include_directories(tower_lib PUBLIC include)

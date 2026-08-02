@@ -8,6 +8,8 @@
 #include <optional>
 #include <thread>
 #include <unistd.h>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "bar_plot_window.hpp"
 #include "canvas.hpp"
@@ -22,7 +24,7 @@
 #include "ring_buffer.hpp"
 #include "tui.hpp"
 
-static constexpr int INTERVAL_MS = 100;
+static constexpr int INTERVAL_MS = 1000;
 
 class PocTui
 {
@@ -119,6 +121,8 @@ public:
         const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
         LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
       }
+      const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+      LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
 
       std::this_thread::sleep_until(next);
     }
@@ -129,10 +133,14 @@ private:
   TerminalSize tui_size_;
   FrameBuffer frame_buffer_;
 
+  const int clock_tick_ = sysconf(_SC_CLK_TCK);
+
   Stat last_stat_;
   NetDev last_net_dev_{-1, -1};
   double total_memory_ = 0;
   std::chrono::steady_clock::time_point last_net_dev_read_ = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point last_procs_read_ = std::chrono::steady_clock::now();
+  std::unordered_map<int, long long> last_proc_jiffies_;
 
   RingBuffer<double> cpu_load_rb_{50000};
   RingBuffer<double> mem_available_rb_{50000};
@@ -221,12 +229,36 @@ private:
 
   void update_proc_data()
   {
+    auto now = std::chrono::steady_clock::now();
     auto proc_data = get_procs_data();
+
     proc_data_.clear();
     proc_data_.reserve(proc_data.size());
-    for (const auto &d : proc_data)
+
+    double elapsed_seconds = std::chrono::duration<double>(now - last_procs_read_).count();
+    std::unordered_set<int> current_pids;
+
+    for (auto &pd : proc_data)
     {
-      proc_data_.push_back(d);
+      current_pids.insert(pd.pid);
+      const long long current_jiffies = pd.utime + pd.stime;
+      if (last_proc_jiffies_.contains(pd.pid))
+      {
+        const long long last_jiffies = last_proc_jiffies_[pd.pid];
+        pd.cpu_usage_pct = (current_jiffies - last_jiffies) / (elapsed_seconds * clock_tick_) * 100;
+      }
+      proc_data_.push_back(pd);
+
+      last_proc_jiffies_[pd.pid] = current_jiffies;
     }
+
+    std::sort(
+        proc_data_.begin(),
+        proc_data_.end(),
+        [](const ProcData &a, const ProcData &b) { return a.cpu_usage_pct > b.cpu_usage_pct; });
+
+    std::erase_if(last_proc_jiffies_, [&](const auto &entry) { return !current_pids.contains(entry.first); });
+
+    last_procs_read_ = now;
   }
 };

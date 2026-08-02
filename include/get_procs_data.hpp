@@ -7,10 +7,19 @@
 #include <string>
 #include <vector>
 
+#include "collect.hpp"
+#include "logger.hpp"
+#include "parsers/proc_stat.hpp"
+#include "parsers/proc_status.hpp"
+
 struct ProcData
 {
   int pid;
   std::string name;
+  long long mem_usage_kb;
+  long long utime;
+  long long stime;
+  double cpu_usage_pct = 0; // computed in poc_tui
 };
 
 inline std::vector<ProcData> get_procs_data()
@@ -24,12 +33,14 @@ inline std::vector<ProcData> get_procs_data()
     std::string_view filename = entry.path().c_str();
     filename.remove_prefix(filename.rfind('/') + 1);
 
+    // PID
     auto [ptr, ec] = std::from_chars(filename.begin(), filename.end(), pid);
     if (ec != std::errc{} || ptr != filename.data() + filename.size())
     {
       continue;
     }
 
+    // NAME
     std::ifstream file(entry.path() / "comm");
     if (!file)
     {
@@ -41,8 +52,22 @@ inline std::vector<ProcData> get_procs_data()
       continue;
     }
 
-    // std::cout << entry.path() << " - " << name << '\n';
-    result.push_back({pid, name});
+    // MEM KB
+    const auto status = collect<ProcStatusParser>(std::format("/proc/{}/status", pid));
+    if (!status)
+    {
+      continue;
+    }
+
+    // CPU JIFFIES
+    const auto stat = collect<ProcStatParser>(std::format("/proc/{}/stat", pid));
+    if (!stat)
+    {
+      continue;
+    }
+
+    result.push_back(
+        {.pid = pid, .name = name, .mem_usage_kb = status->vm_rss_kb, .utime = stat->utime, .stime = stat->stime});
   }
 
   return result;
