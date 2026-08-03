@@ -28,17 +28,11 @@ public:
 
   void draw(Canvas &canvas) const override
   {
-    draw_window_frame(canvas, rect().row_offset, rect().col_offset, rect().row_count, rect().col_count, heading());
-    draw_bar_plot(
-        canvas,
-        rect().row_offset + 1,
-        rect().col_offset + 1,
-        rect().row_count - 2,
-        rect().col_count - 2,
-        ymin_,
-        ymax_,
-        color_,
-        data_rb_);
+    draw_window_frame(canvas, rect(), heading());
+
+    const Rect bar_plot_rect = Rect{
+        rect().row_offset + 1, rect().col_offset + 1, rect().row_count - 2, rect().col_count - 2};
+    draw_bar_plot(canvas, bar_plot_rect, ymin_, ymax_, color_, data_rb_);
   }
 
   void set_ymax(double ymax) { ymax_ = ymax; }

@@ -10,6 +10,7 @@
 
 #include "canvas.hpp"
 #include "ring_buffer.hpp"
+#include "windows/window.hpp"
 
 // We use Unicode block elements to draw plot bars: eight glyphs representing one eighth,
 // two eighths, and so on up to a full block. Each row of the plot therefore has 8
@@ -27,41 +28,34 @@ inline constexpr std::array<std::string_view, 8> UNICODE_BLOCK_ELEMENTS = {
 };
 inline constexpr int BUCKETS_PER_ROW = UNICODE_BLOCK_ELEMENTS.size();
 
-inline void validate_inputs(
-    const Canvas &dest,
-    const size_t row_offset,
-    const size_t col_offset,
-    const size_t row_count,
-    const size_t col_count,
-    const double ymin,
-    const double ymax)
+inline void validate_inputs(const Canvas &dest, const Rect rect, const double ymin, const double ymax)
 {
-  if (row_count == 0)
+  if (rect.row_count == 0)
   {
     throw std::invalid_argument("draw_bar_plot: rows must be > 0");
   }
 
-  if (col_count == 0)
+  if (rect.col_count == 0)
   {
     throw std::invalid_argument("draw_bar_plot: cols must be > 0");
   }
 
-  if (dest.row_count() < row_offset + row_count)
+  if (dest.row_count() < rect.row_offset + rect.row_count)
   {
     const auto msg = std::format(
         "draw_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
-        row_offset,
-        row_count,
+        rect.row_offset,
+        rect.row_count,
         dest.row_count());
     throw std::invalid_argument(msg);
   }
 
-  if (dest.col_count() < col_offset + col_count)
+  if (dest.col_count() < rect.col_offset + rect.col_count)
   {
     const auto msg = std::format(
         "draw_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
-        col_offset,
-        col_count,
+        rect.col_offset,
+        rect.col_count,
         dest.col_count());
     throw std::invalid_argument(msg);
   }
@@ -132,20 +126,17 @@ value_to_column_glyphs(const size_t row_count, const double ymin, const double y
 
 inline void draw_bar_plot(
     Canvas &dest,
-    const size_t row_offset,
-    const size_t col_offset,
-    const size_t row_count,
-    const size_t col_count,
+    const Rect rect,
     const double ymin,
     const double ymax,
     const Color color,
     const RingBuffer<double> &data_rb)
 {
-  validate_inputs(dest, row_offset, col_offset, row_count, col_count, ymin, ymax);
+  validate_inputs(dest, rect, ymin, ymax);
 
-  for (size_t row = row_offset; row < row_offset + row_count; ++row)
+  for (size_t row = rect.row_offset; row < rect.row_offset + rect.row_count; ++row)
   {
-    std::fill(dest.row_begin(row) + col_offset, dest.row_begin(row) + col_offset + col_count, Cell{" "});
+    std::fill(dest.row_begin(row) + rect.col_offset, dest.row_begin(row) + rect.col_offset + rect.col_count, Cell{" "});
   }
 
   if (data_rb.size() == 0)
@@ -153,13 +144,13 @@ inline void draw_bar_plot(
     return;
   }
 
-  auto [col_index, data_index] = compute_start_indexes(col_count, data_rb.size());
-  for (; col_index < col_count; ++col_index)
+  auto [col_index, data_index] = compute_start_indexes(rect.col_count, data_rb.size());
+  for (; col_index < rect.col_count; ++col_index)
   {
-    const auto glyphs = value_to_column_glyphs(row_count, ymin, ymax, data_rb[data_index++]);
-    for (size_t row_index = 0; row_index < row_count; ++row_index)
+    const auto glyphs = value_to_column_glyphs(rect.row_count, ymin, ymax, data_rb[data_index++]);
+    for (size_t row_index = 0; row_index < rect.row_count; ++row_index)
     {
-      dest(row_offset + row_index, col_offset + col_index) = Cell{std::string(glyphs[row_index]), color};
+      dest(rect.row_offset + row_index, rect.col_offset + col_index) = Cell{std::string(glyphs[row_index]), color};
     }
   }
 };
