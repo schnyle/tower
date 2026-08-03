@@ -7,8 +7,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(tower_tests
-  build_bar_plot_test.cpp
   canvas_test.cpp
+  drawing/draw_bar_plot_test.cpp
   ring_buffer_test.cpp
 )
 target_link_libraries(tower_tests PRIVATE tower_lib GTest::gtest_main)

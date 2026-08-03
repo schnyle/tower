@@ -38,18 +38,18 @@ inline void validate_inputs(
 {
   if (row_count == 0)
   {
-    throw std::invalid_argument("build_bar_plot: rows must be > 0");
+    throw std::invalid_argument("draw_bar_plot: rows must be > 0");
   }
 
   if (col_count == 0)
   {
-    throw std::invalid_argument("build_bar_plot: cols must be > 0");
+    throw std::invalid_argument("draw_bar_plot: cols must be > 0");
   }
 
   if (dest.row_count() < row_offset + row_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        "draw_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
         row_offset,
         row_count,
         dest.row_count());
@@ -59,7 +59,7 @@ inline void validate_inputs(
   if (dest.col_count() < col_offset + col_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
+        "draw_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
         col_offset,
         col_count,
         dest.col_count());
@@ -68,7 +68,7 @@ inline void validate_inputs(
 
   if (!(ymin < ymax))
   {
-    const auto msg = std::format("build_bar_plot: ymin ({}) must be less than ymax ({})", ymin, ymax);
+    const auto msg = std::format("draw_bar_plot: ymin ({}) must be less than ymax ({})", ymin, ymax);
     throw std::invalid_argument(msg);
   }
 }
@@ -130,7 +130,7 @@ value_to_column_glyphs(const size_t row_count, const double ymin, const double y
   return glyphs;
 }
 
-inline void build_bar_plot(
+inline void draw_bar_plot(
     Canvas &dest,
     const size_t row_offset,
     const size_t col_offset,

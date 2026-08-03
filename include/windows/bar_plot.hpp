@@ -4,9 +4,9 @@
 #include <functional>
 #include <string>
 
-#include "build_bar_plot.hpp"
-#include "build_window_frame.hpp"
 #include "canvas.hpp"
+#include "drawing/draw_bar_plot.hpp"
+#include "drawing/draw_window_frame.hpp"
 #include "ring_buffer.hpp"
 #include "windows/window.hpp"
 
@@ -28,8 +28,8 @@ public:
 
   void draw(Canvas &canvas) const override
   {
-    build_window_frame(canvas, rect().row_offset, rect().col_offset, rect().row_count, rect().col_count, heading());
-    build_bar_plot(
+    draw_window_frame(canvas, rect().row_offset, rect().col_offset, rect().row_count, rect().col_count, heading());
+    draw_bar_plot(
         canvas,
         rect().row_offset + 1,
         rect().col_offset + 1,

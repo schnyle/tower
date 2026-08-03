@@ -10,7 +10,7 @@ static constexpr size_t NAME_WIDTH = 16;
 static constexpr size_t MEM_WIDTH = 5;
 static constexpr size_t CPU_WIDTH = 5;
 
-inline void build_processes_table(Canvas &canvas, const Rect rect, const std::vector<ProcData> processes_data)
+inline void draw_processes_table(Canvas &canvas, const Rect rect, const std::vector<ProcData> &processes_data)
 {
   for (size_t i = 0; i < rect.row_count; ++i)
   {

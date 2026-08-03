@@ -2,9 +2,9 @@
 
 #include <string>
 
-#include "build_process_list.hpp"
-#include "build_window_frame.hpp"
 #include "canvas.hpp"
+#include "drawing/draw_process_list.hpp"
+#include "drawing/draw_window_frame.hpp"
 #include "get_procs_data.hpp"
 #include "windows/window.hpp"
 
@@ -18,11 +18,11 @@ public:
 
   void draw(Canvas &canvas) const override
   {
-    build_window_frame(canvas, rect().row_offset, rect().col_offset, rect().row_count, rect().col_count, name());
+    draw_window_frame(canvas, rect().row_offset, rect().col_offset, rect().row_count, rect().col_count, name());
 
     const Rect process_table_rect = Rect{
         rect().row_offset + 1, rect().col_offset + 1, rect().row_count - 2, rect().col_count - 2};
-    build_processes_table(canvas, process_table_rect, processes_data_);
+    draw_processes_table(canvas, process_table_rect, processes_data_);
   }
 
 private:

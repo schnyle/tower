@@ -3,7 +3,6 @@
 #include <format>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 #include "canvas.hpp"
 
@@ -18,18 +17,18 @@ inline void validate_inputs(
 {
   if (row_count == 0)
   {
-    throw std::invalid_argument("build_bar_plot: rows must be > 0");
+    throw std::invalid_argument("draw_window_frame: rows must be > 0");
   }
 
   if (col_count == 0)
   {
-    throw std::invalid_argument("build_bar_plot: cols must be > 0");
+    throw std::invalid_argument("draw_window_frame: cols must be > 0");
   }
 
   if (dest.row_count() < row_offset + row_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        "draw_window_frame: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
         row_offset,
         row_count,
         dest.row_count());
@@ -39,7 +38,7 @@ inline void validate_inputs(
   if (dest.col_count() < col_offset + col_count)
   {
     const auto msg = std::format(
-        "build_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
+        "draw_window_frame: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
         col_offset,
         col_count,
         dest.col_count());
@@ -47,7 +46,7 @@ inline void validate_inputs(
   }
 }
 
-inline void build_window_frame(
+inline void draw_window_frame(
     Canvas &canvas,
     const size_t row_offset,
     const size_t col_offset,
