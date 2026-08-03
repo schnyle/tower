@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "bar_plot_window.hpp"
 #include "canvas.hpp"
 #include "collect.hpp"
 #include "frame_buffer.hpp"
@@ -20,9 +19,10 @@
 #include "parsers/meminfo.hpp"
 #include "parsers/net_dev.hpp"
 #include "parsers/stat.hpp"
-#include "proc_list_window.hpp"
 #include "ring_buffer.hpp"
 #include "tui.hpp"
+#include "windows/bar_plot.hpp"
+#include "windows/process_list.hpp"
 
 static constexpr int INTERVAL_MS = 1000;
 
@@ -31,57 +31,58 @@ class PocTui
 public:
   PocTui()
       : tui_(), tui_size_(tui_.get_size()), frame_buffer_(tui_size_.rows, tui_size_.cols),
-        cpu_load_w_{
-            .row_offset = 0,
-            .col_offset = 0,
-            .row_count = static_cast<size_t>(tui_size_.rows / 3),
-            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
-            .title = "cpu load",
-            .ymin = 0.,
-            .ymax = 1.,
-            .color = Color::red(),
-            .format_value = [](double v) { return std::format("{:.1f}%", v * 100); },
-            .data_rb = cpu_load_rb_},
-        available_mem_w_{
-            .row_offset = static_cast<size_t>(tui_size_.rows / 3),
-            .col_offset = 0,
-            .row_count = static_cast<size_t>(tui_size_.rows / 3),
-            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
-            .title = "available memory",
-            .ymin = 0.,
-            .ymax = 1.,
-            .color = Color::green(),
-            .format_value = [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
-            .data_rb = mem_available_rb_},
-        download_w_{
-            .row_offset = static_cast<size_t>(tui_size_.rows * 2 / 3),
-            .col_offset = 0,
-            .row_count = static_cast<size_t>(tui_size_.rows / 3 / 2),
-            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
-            .title = "download",
-            .ymin = 0.,
-            .ymax = 1.,
-            .color = Color::blue(),
-            .format_value = [](double v) { return std::format("{:.1f} B/s", v); },
-            .data_rb = download_rb_},
-        upload_w_{
-            .row_offset = static_cast<size_t>((tui_size_.rows * 2 / 3) + tui_size_.rows / 3 / 2),
-            .col_offset = 0,
-            .row_count = static_cast<size_t>(tui_size_.rows / 3 / 2),
-            .col_count = static_cast<size_t>(tui_size_.cols * 3 / 4),
-            .title = "upload",
-            .ymin = 0.,
-            .ymax = 1.,
-            .color = Color::purple(),
-            .format_value = [](double v) { return std::format("{:.1f} B/s", v); },
-            .data_rb = upload_rb_},
-        procs_w_{
-            .row_offset = 0,
-            .col_offset = static_cast<size_t>(tui_size_.cols * 3 / 4),
-            .row_count = tui_size_.rows,
-            .col_count = static_cast<size_t>(tui_size_.cols * 1 / 4),
-            .title = "processes",
-            .data = proc_data_,
+        cpu_load_window_{
+            "cpu load",
+            Rect{0, 0, static_cast<size_t>(tui_size_.rows / 3), static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            0.,
+            1.,
+            Color::red(),
+            [](double v) { return std::format("{:.1f}%", v * 100); },
+            cpu_load_rb_},
+        available_memory_window_{
+            "available memory",
+            Rect{
+                static_cast<size_t>(tui_size_.rows / 3),
+                0,
+                static_cast<size_t>(tui_size_.rows / 3),
+                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            0.,
+            1.,
+            Color::green(),
+            [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
+            mem_available_rb_},
+        receive_bytes_window_{
+            "download",
+            Rect{
+                static_cast<size_t>(tui_size_.rows * 2 / 3),
+                0,
+                static_cast<size_t>(tui_size_.rows / 3 / 2),
+                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            0.,
+            1.,
+            Color::blue(),
+            [](double v) { return std::format("{:.1f} B/s", v); },
+            download_rb_},
+        transmit_bytes_window_{
+            "upload",
+            Rect{
+                static_cast<size_t>((tui_size_.rows * 2 / 3) + tui_size_.rows / 3 / 2),
+                0,
+                static_cast<size_t>(tui_size_.rows / 3 / 2),
+                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            0.,
+            1.,
+            Color::purple(),
+            [](double v) { return std::format("{:.1f} B/s", v); },
+            upload_rb_},
+        process_list_window_{
+            "processes",
+            Rect{
+                0,
+                static_cast<size_t>(tui_size_.cols * 3 / 4),
+                tui_size_.rows,
+                static_cast<size_t>(tui_size_.cols * 1 / 4)},
+            proc_data_,
         }
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
@@ -109,11 +110,11 @@ public:
       update_net_dev();
       update_proc_data();
 
-      draw_bar_plot_window(frame_buffer_.back_buf(), cpu_load_w_);
-      draw_bar_plot_window(frame_buffer_.back_buf(), available_mem_w_);
-      draw_bar_plot_window(frame_buffer_.back_buf(), download_w_);
-      draw_bar_plot_window(frame_buffer_.back_buf(), upload_w_);
-      draw_proc_window(frame_buffer_.back_buf(), procs_w_);
+      cpu_load_window_.draw(frame_buffer_.back_buf());
+      available_memory_window_.draw(frame_buffer_.back_buf());
+      receive_bytes_window_.draw(frame_buffer_.back_buf());
+      transmit_bytes_window_.draw(frame_buffer_.back_buf());
+      process_list_window_.draw(frame_buffer_.back_buf());
       frame_buffer_.draw();
 
       if ((now = std::chrono::steady_clock::now()) > next)
@@ -121,8 +122,6 @@ public:
         const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
         LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
       }
-      const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
-      LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
 
       std::this_thread::sleep_until(next);
     }
@@ -152,11 +151,11 @@ private:
 
   std::vector<ProcData> proc_data_;
 
-  BarPlotWindow cpu_load_w_;
-  BarPlotWindow available_mem_w_;
-  BarPlotWindow download_w_;
-  BarPlotWindow upload_w_;
-  ProcListWindow procs_w_;
+  BarPlotWindow cpu_load_window_;
+  BarPlotWindow available_memory_window_;
+  BarPlotWindow receive_bytes_window_;
+  BarPlotWindow transmit_bytes_window_;
+  ProcessListWindow process_list_window_;
 
   void update_stat()
   {
@@ -179,7 +178,7 @@ private:
     {
       mem_available_rb_.push(static_cast<double>(meminfo->mem_available_kb));
       total_memory_ = meminfo->mem_total_kb;
-      available_mem_w_.ymax = total_memory_;
+      available_memory_window_.set_ymax(total_memory_);
     }
   }
 
@@ -195,14 +194,14 @@ private:
         double download = (net_dev->rx_bytes - last_net_dev_.rx_bytes) / elapsed_seconds;
         download_rb_.push(download);
         download_history_.push_back(download);
-        if (download_history_.size() > download_w_.col_count - 2)
+        if (download_history_.size() > receive_bytes_window_.rect().col_count - 2)
         {
           download_history_.pop_front();
         }
         if (const auto max_it = std::max_element(download_history_.begin(), download_history_.end());
             max_it != download_history_.end() && *max_it > 0)
         {
-          download_w_.ymax = *max_it;
+          receive_bytes_window_.set_ymax(*max_it);
         }
       }
 
@@ -211,14 +210,14 @@ private:
         double upload = (net_dev->tx_bytes - last_net_dev_.tx_bytes) / elapsed_seconds;
         upload_rb_.push(upload);
         upload_history_.push_back(upload);
-        if (upload_history_.size() > upload_w_.col_count - 2)
+        if (upload_history_.size() > transmit_bytes_window_.rect().col_count - 2)
         {
           upload_history_.pop_front();
         }
         if (const auto max_it = std::max_element(upload_history_.begin(), upload_history_.end());
             max_it != upload_history_.end() && *max_it > 0)
         {
-          upload_w_.ymax = *max_it;
+          transmit_bytes_window_.set_ymax(*max_it);
         }
       }
 
@@ -245,7 +244,8 @@ private:
       if (last_proc_jiffies_.contains(pd.pid))
       {
         const long long last_jiffies = last_proc_jiffies_[pd.pid];
-        pd.cpu_usage_pct = (current_jiffies - last_jiffies) / (elapsed_seconds * clock_tick_) * 100;
+        pd.cpu_usage_pct = (current_jiffies - last_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
+                           32; // TODO: replace with actual CPU count
       }
       proc_data_.push_back(pd);
 
