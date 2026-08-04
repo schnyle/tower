@@ -28,6 +28,15 @@
 
 static constexpr int INTERVAL_MS = 1000;
 
+inline Rect rect_from_fractions(TerminalSize size, double row_frac, double col_frac, double row_span, double col_span)
+{
+  return Rect{
+      static_cast<size_t>(size.rows * row_frac),
+      static_cast<size_t>(size.cols * col_frac),
+      static_cast<size_t>(size.rows * row_span),
+      static_cast<size_t>(size.cols * col_span)};
+}
+
 class PocTui
 {
 public:
@@ -35,7 +44,7 @@ public:
       : tui_(), tui_size_(tui_.get_size()), frame_buffer_(tui_size_.rows, tui_size_.cols),
         cpu_load_window_{
             "cpu load",
-            Rect{0, 0, static_cast<size_t>(tui_size_.rows / 3), static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            rect_from_fractions(tui_size_, 0., 0., 1. / 3., 3. / 4.),
             0.,
             1.,
             Color::red(),
@@ -43,11 +52,7 @@ public:
             cpu_load_rb_},
         available_memory_window_{
             "available memory",
-            Rect{
-                static_cast<size_t>(tui_size_.rows / 3),
-                0,
-                static_cast<size_t>(tui_size_.rows / 3),
-                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            rect_from_fractions(tui_size_, 1. / 3., 0., 1. / 3., 3. / 4.),
             0.,
             1.,
             Color::green(),
@@ -55,11 +60,7 @@ public:
             mem_available_rb_},
         receive_bytes_window_{
             "download",
-            Rect{
-                static_cast<size_t>(tui_size_.rows * 2 / 3),
-                0,
-                static_cast<size_t>(tui_size_.rows / 3 / 2),
-                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            rect_from_fractions(tui_size_, 2. / 3., 0., 1. / 6., 3. / 4.),
             0.,
             1.,
             Color::blue(),
@@ -67,11 +68,7 @@ public:
             download_rb_},
         transmit_bytes_window_{
             "upload",
-            Rect{
-                static_cast<size_t>((tui_size_.rows * 2 / 3) + tui_size_.rows / 3 / 2),
-                0,
-                static_cast<size_t>(tui_size_.rows / 3 / 2),
-                static_cast<size_t>(tui_size_.cols * 3 / 4)},
+            rect_from_fractions(tui_size_, (2. / 3.) + (1. / 6.), 0., 1. / 6., 3. / 4.),
             0.,
             1.,
             Color::purple(),
@@ -79,21 +76,10 @@ public:
             upload_rb_},
         process_list_window_{
             "processes",
-            Rect{
-                static_cast<size_t>(tui_size_.rows * 1 / 4),
-                static_cast<size_t>(tui_size_.cols * 3 / 4),
-                static_cast<size_t>(tui_size_.rows * 3 / 4),
-                static_cast<size_t>(tui_size_.cols * 1 / 4)},
+            rect_from_fractions(tui_size_, 1. / 12., 3. / 4., 11. / 12., 1. / 4.),
             proc_data_,
         },
-        system_info_window_{
-            "tower",
-            Rect{
-                0,
-                static_cast<size_t>(tui_size_.cols * 3 / 4),
-                static_cast<size_t>(tui_size_.rows * 1 / 4),
-                static_cast<size_t>(tui_size_.cols * 1 / 4)},
-            get_system_info()}
+        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 12., 1. / 4.), get_system_info()}
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
