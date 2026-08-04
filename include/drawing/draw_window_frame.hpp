@@ -9,7 +9,7 @@
 
 static constexpr int NAME_OFFSET = 2;
 
-inline void validate_inputs(Canvas &dest, const Rect rect)
+inline void validate_inputs(Canvas &canvas, const Rect rect)
 {
   if (rect.row_count == 0)
   {
@@ -21,23 +21,23 @@ inline void validate_inputs(Canvas &dest, const Rect rect)
     throw std::invalid_argument("draw_window_frame: cols must be > 0");
   }
 
-  if (dest.row_count() < rect.row_offset + rect.row_count)
+  if (canvas.row_count() < rect.row_offset + rect.row_count)
   {
     const auto msg = std::format(
-        "draw_window_frame: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        "draw_window_frame: row_offset ({}) + row_count ({}) exceeds canvas rows ({})",
         rect.row_offset,
         rect.row_count,
-        dest.row_count());
+        canvas.row_count());
     throw std::invalid_argument(msg);
   }
 
-  if (dest.col_count() < rect.col_offset + rect.col_count)
+  if (canvas.col_count() < rect.col_offset + rect.col_count)
   {
     const auto msg = std::format(
-        "draw_window_frame: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
+        "draw_window_frame: col_offset ({}) + col_offset ({}) exceeds canvas cols ({})",
         rect.col_offset,
         rect.col_count,
-        dest.col_count());
+        canvas.col_count());
     throw std::invalid_argument(msg);
   }
 }

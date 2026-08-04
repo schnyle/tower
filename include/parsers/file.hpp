@@ -2,6 +2,8 @@
 #include <optional>
 #include <string_view>
 
+std::string_view strip(std::string_view sv, std::string_view chars = " \t");
+
 const std::optional<std::ifstream> read_file(const std::string_view);
 
 struct KeyValueLine

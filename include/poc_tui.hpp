@@ -15,6 +15,7 @@
 #include "collect.hpp"
 #include "frame_buffer.hpp"
 #include "get_procs_data.hpp"
+#include "get_system_info.hpp"
 #include "logger.hpp"
 #include "parsers/meminfo.hpp"
 #include "parsers/net_dev.hpp"
@@ -23,6 +24,7 @@
 #include "tui.hpp"
 #include "windows/bar_plot.hpp"
 #include "windows/process_list.hpp"
+#include "windows/system_info.hpp"
 
 static constexpr int INTERVAL_MS = 1000;
 
@@ -78,12 +80,20 @@ public:
         process_list_window_{
             "processes",
             Rect{
-                0,
+                static_cast<size_t>(tui_size_.rows * 1 / 4),
                 static_cast<size_t>(tui_size_.cols * 3 / 4),
-                tui_size_.rows,
+                static_cast<size_t>(tui_size_.rows * 3 / 4),
                 static_cast<size_t>(tui_size_.cols * 1 / 4)},
             proc_data_,
-        }
+        },
+        system_info_window_{
+            "tower",
+            Rect{
+                0,
+                static_cast<size_t>(tui_size_.cols * 3 / 4),
+                static_cast<size_t>(tui_size_.rows * 1 / 4),
+                static_cast<size_t>(tui_size_.cols * 1 / 4)},
+            get_system_info()}
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
@@ -115,6 +125,7 @@ public:
       receive_bytes_window_.draw(frame_buffer_.back_buf());
       transmit_bytes_window_.draw(frame_buffer_.back_buf());
       process_list_window_.draw(frame_buffer_.back_buf());
+      system_info_window_.draw(frame_buffer_.back_buf());
       frame_buffer_.draw();
 
       if ((now = std::chrono::steady_clock::now()) > next)
@@ -156,6 +167,7 @@ private:
   BarPlotWindow receive_bytes_window_;
   BarPlotWindow transmit_bytes_window_;
   ProcessListWindow process_list_window_;
+  SystemInfoWindow system_info_window_;
 
   void update_stat()
   {

@@ -5,6 +5,18 @@
 #include "logger.hpp"
 #include "parsers/file.hpp"
 
+std::string_view strip(std::string_view sv, std::string_view chars)
+{
+  const size_t start = sv.find_first_not_of(chars);
+  if (start == std::string_view::npos)
+  {
+    return {};
+  }
+  sv.remove_prefix(start);
+  sv.remove_suffix(sv.size() - sv.find_last_not_of(chars) - 1);
+  return sv;
+}
+
 const std::optional<std::ifstream> read_file(const std::string_view path)
 {
   std::ifstream file(path.data());
@@ -25,9 +37,9 @@ std::optional<KeyValueLine> parse_key_value_line(std::string_view sv, const char
     return std::nullopt;
   }
 
-  const std::string_view key = sv.substr(0, pos);
+  const std::string_view key = strip(sv.substr(0, pos));
 
-  std::string_view value = sv.substr(pos + 1);
+  std::string_view value = strip(sv.substr(pos + 1));
   const size_t start = value.find_first_not_of(" \t");
   if (start == std::string_view::npos)
   {

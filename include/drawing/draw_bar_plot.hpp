@@ -28,7 +28,7 @@ inline constexpr std::array<std::string_view, 8> UNICODE_BLOCK_ELEMENTS = {
 };
 inline constexpr int BUCKETS_PER_ROW = UNICODE_BLOCK_ELEMENTS.size();
 
-inline void validate_inputs(const Canvas &dest, const Rect rect, const double ymin, const double ymax)
+inline void validate_inputs(const Canvas &canvas, const Rect rect, const double ymin, const double ymax)
 {
   if (rect.row_count == 0)
   {
@@ -40,23 +40,23 @@ inline void validate_inputs(const Canvas &dest, const Rect rect, const double ym
     throw std::invalid_argument("draw_bar_plot: cols must be > 0");
   }
 
-  if (dest.row_count() < rect.row_offset + rect.row_count)
+  if (canvas.row_count() < rect.row_offset + rect.row_count)
   {
     const auto msg = std::format(
-        "draw_bar_plot: row_offset ({}) + row_count ({}) exceeds dest rows ({})",
+        "draw_bar_plot: row_offset ({}) + row_count ({}) exceeds canvas rows ({})",
         rect.row_offset,
         rect.row_count,
-        dest.row_count());
+        canvas.row_count());
     throw std::invalid_argument(msg);
   }
 
-  if (dest.col_count() < rect.col_offset + rect.col_count)
+  if (canvas.col_count() < rect.col_offset + rect.col_count)
   {
     const auto msg = std::format(
-        "draw_bar_plot: col_offset ({}) + col_offset ({}) exceeds dest cols ({})",
+        "draw_bar_plot: col_offset ({}) + col_offset ({}) exceeds canvas cols ({})",
         rect.col_offset,
         rect.col_count,
-        dest.col_count());
+        canvas.col_count());
     throw std::invalid_argument(msg);
   }
 
@@ -125,18 +125,19 @@ value_to_column_glyphs(const size_t row_count, const double ymin, const double y
 }
 
 inline void draw_bar_plot(
-    Canvas &dest,
+    Canvas &canvas,
     const Rect rect,
     const double ymin,
     const double ymax,
     const Color color,
     const RingBuffer<double> &data_rb)
 {
-  validate_inputs(dest, rect, ymin, ymax);
+  validate_inputs(canvas, rect, ymin, ymax);
 
   for (size_t row = rect.row_offset; row < rect.row_offset + rect.row_count; ++row)
   {
-    std::fill(dest.row_begin(row) + rect.col_offset, dest.row_begin(row) + rect.col_offset + rect.col_count, Cell{" "});
+    std::fill(
+        canvas.row_begin(row) + rect.col_offset, canvas.row_begin(row) + rect.col_offset + rect.col_count, Cell{" "});
   }
 
   if (data_rb.size() == 0)
@@ -150,7 +151,7 @@ inline void draw_bar_plot(
     const auto glyphs = value_to_column_glyphs(rect.row_count, ymin, ymax, data_rb[data_index++]);
     for (size_t row_index = 0; row_index < rect.row_count; ++row_index)
     {
-      dest(rect.row_offset + row_index, rect.col_offset + col_index) = Cell{std::string(glyphs[row_index]), color};
+      canvas(rect.row_offset + row_index, rect.col_offset + col_index) = Cell{std::string(glyphs[row_index]), color};
     }
   }
 };

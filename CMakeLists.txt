@@ -15,6 +15,7 @@ endif()
 add_library(tower_lib STATIC
   src/frame_buffer.cpp
   src/parsers/file.cpp
+  src/parsers/cpuinfo.cpp
   src/parsers/loadavg.cpp
   src/parsers/meminfo.cpp
   src/parsers/net_dev.cpp
