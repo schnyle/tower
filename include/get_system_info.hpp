@@ -2,6 +2,7 @@
 
 #include <string>
 #include <sys/utsname.h>
+#include <unistd.h>
 
 #include "collect.hpp"
 #include "parsers/cpuinfo.hpp"
@@ -15,6 +16,7 @@ struct SystemInfo
   std::string machine = "";
   std::string cpu_model = "";
   int cpu_cores = 0;
+  int cpu_threads = 0;
 };
 
 inline SystemInfo get_system_info()
@@ -35,6 +37,8 @@ inline SystemInfo get_system_info()
     system_info.cpu_model = cpu_info->model_name;
     system_info.cpu_cores = cpu_info->cpu_cores;
   };
+
+  system_info.cpu_threads = sysconf(_SC_NPROCESSORS_ONLN);
 
   return system_info;
 }

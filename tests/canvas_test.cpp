@@ -153,12 +153,15 @@ TEST(Canvas, CopyNWritesString)
   EXPECT_EQ(c(2, 2), Cell{"z"});
 }
 
-TEST(Canvas, CopyNThrowsOnCountExceedsSrcSize)
+TEST(Canvas, CopyNClampsOnCountExceedsSrcSize)
 {
-  Canvas c(3, 3);
+  Canvas c(1, 3);
   const std::string row = "abc";
 
-  EXPECT_THROW(c.copy_n(0, 0, row, 4), std::invalid_argument);
+  c.copy_n(0, 0, row, 4);
+  EXPECT_EQ(c(0, 0), Cell{"a"});
+  EXPECT_EQ(c(0, 1), Cell{"b"});
+  EXPECT_EQ(c(0, 2), Cell{"c"});
 }
 
 TEST(Canvas, CopyNThrowsOnStringExceedsColCount)

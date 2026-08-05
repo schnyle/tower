@@ -95,12 +95,7 @@ public:
     {
       src_count = src.size();
     }
-
-    if (src_count > src.size())
-    {
-      throw std::invalid_argument(
-          std::format("Canvas::copy_n: count ({}) exceeds src size ({})", src_count, src.size()));
-    }
+    src_count = std::min(src_count, src.size());
 
     if (col + src_count > col_count_)
     {

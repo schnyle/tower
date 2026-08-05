@@ -96,7 +96,7 @@ public:
             rect_from_fractions(tui_size_, 1. / 12., 3. / 4., 11. / 12., 1. / 4.),
             proc_data_,
         },
-        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 12., 1. / 4.), get_system_info()}
+        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 12., 1. / 4.), system_info_}
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
@@ -151,6 +151,7 @@ private:
   FrameBuffer frame_buffer_;
 
   const int clock_tick_ = sysconf(_SC_CLK_TCK);
+  const SystemInfo system_info_ = get_system_info();
 
   Stat last_stat_;
   NetDev last_net_dev_{-1, -1};
@@ -208,7 +209,7 @@ private:
       {
         const double elapsed_seconds = std::chrono::duration<double>(now - *last_proc_cpu_usage_read).count();
         const double usage_pct = (current_proc_jiffies - *last_proc_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
-                                 32; // TODO: replace with actual CPU count
+                                 system_info_.cpu_threads;
         proc_cpu_load_pct_rb_.push(usage_pct);
       }
       last_proc_jiffies = current_proc_jiffies;
@@ -299,7 +300,7 @@ private:
       {
         const long long last_jiffies = last_proc_jiffies_[pd.pid];
         pd.cpu_usage_pct = (current_jiffies - last_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
-                           32; // TODO: replace with actual CPU count
+                           system_info_.cpu_threads;
       }
       proc_data_.push_back(pd);
 
