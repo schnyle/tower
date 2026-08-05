@@ -27,6 +27,7 @@
 #include "windows/system_info.hpp"
 
 static constexpr int INTERVAL_MS = 1000;
+static constexpr int PROCESS_PID = 1233;
 
 inline Rect rect_from_fractions(TerminalSize size, double row_frac, double col_frac, double row_span, double col_span)
 {
@@ -44,20 +45,36 @@ public:
       : tui_(), tui_size_(tui_.get_size()), frame_buffer_(tui_size_.rows, tui_size_.cols),
         cpu_load_window_{
             "cpu load",
-            rect_from_fractions(tui_size_, 0., 0., 1. / 3., 3. / 4.),
+            rect_from_fractions(tui_size_, 0., 0., 1. / 6., 3. / 4.),
             0.,
-            1.,
+            100.,
             Color::red(),
-            [](double v) { return std::format("{:.1f}%", v * 100); },
-            cpu_load_rb_},
+            [](double v) { return std::format("{:.1f}%", v); },
+            cpu_load_pct_rb_},
+        proc_cpu_load_window_{
+            "proc cpu load",
+            rect_from_fractions(tui_size_, 1. / 6., 0., 1. / 6., 3. / 4.),
+            0.,
+            100.,
+            Color::red(),
+            [](double v) { return std::format("{:.1f}%", v); },
+            proc_cpu_load_pct_rb_},
         available_memory_window_{
             "available memory",
-            rect_from_fractions(tui_size_, 1. / 3., 0., 1. / 3., 3. / 4.),
+            rect_from_fractions(tui_size_, 1. / 3., 0., 1. / 6., 3. / 4.),
             0.,
             1.,
             Color::green(),
             [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
             mem_available_rb_},
+        proc_memory_used_window_{
+            "proc used memory",
+            rect_from_fractions(tui_size_, (1. / 3.) + (1. / 6.), 0., 1. / 6., 3. / 4.),
+            0.,
+            1.,
+            Color::green(),
+            [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
+            proc_mem_used_rb_},
         receive_bytes_window_{
             "download",
             rect_from_fractions(tui_size_, 2. / 3., 0., 1. / 6., 3. / 4.),
@@ -102,12 +119,16 @@ public:
       }
 
       update_stat();
+      update_proc_cpu_usage();
       update_meminfo();
+      update_proc_mem_usage();
       update_net_dev();
       update_proc_data();
 
       cpu_load_window_.draw(frame_buffer_.back_buf());
+      proc_cpu_load_window_.draw(frame_buffer_.back_buf());
       available_memory_window_.draw(frame_buffer_.back_buf());
+      proc_memory_used_window_.draw(frame_buffer_.back_buf());
       receive_bytes_window_.draw(frame_buffer_.back_buf());
       transmit_bytes_window_.draw(frame_buffer_.back_buf());
       process_list_window_.draw(frame_buffer_.back_buf());
@@ -138,8 +159,10 @@ private:
   std::chrono::steady_clock::time_point last_procs_read_ = std::chrono::steady_clock::now();
   std::unordered_map<int, long long> last_proc_jiffies_;
 
-  RingBuffer<double> cpu_load_rb_{50000};
+  RingBuffer<double> cpu_load_pct_rb_{50000};
+  RingBuffer<double> proc_cpu_load_pct_rb_{50000};
   RingBuffer<double> mem_available_rb_{50000};
+  RingBuffer<double> proc_mem_used_rb_{50000};
   RingBuffer<double> download_rb_{50000};
   RingBuffer<double> upload_rb_{50000};
 
@@ -149,7 +172,9 @@ private:
   std::vector<ProcData> proc_data_;
 
   BarPlotWindow cpu_load_window_;
+  BarPlotWindow proc_cpu_load_window_;
   BarPlotWindow available_memory_window_;
+  BarPlotWindow proc_memory_used_window_;
   BarPlotWindow receive_bytes_window_;
   BarPlotWindow transmit_bytes_window_;
   ProcessListWindow process_list_window_;
@@ -162,12 +187,33 @@ private:
       CpuTimes delta = stat->cpu_times - last_stat_.cpu_times;
       long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
       long total_time = busy_time + delta.idle + delta.iowait;
-      double usage = static_cast<double>(busy_time) / static_cast<double>(total_time);
+      double usage = static_cast<double>(busy_time) / static_cast<double>(total_time) * 100;
 
-      cpu_load_rb_.push(usage);
+      cpu_load_pct_rb_.push(usage);
 
       last_stat_ = *stat;
     }
+  }
+
+  void update_proc_cpu_usage()
+  {
+    static std::optional<long long> last_proc_jiffies = std::nullopt;
+    static std::optional<std::chrono::steady_clock::time_point> last_proc_cpu_usage_read = std::nullopt;
+
+    auto now = std::chrono::steady_clock::now();
+    if (const auto proc_stat = collect<ProcStatParser>(std::format("/proc/{}/stat", PROCESS_PID)))
+    {
+      const long long current_proc_jiffies = proc_stat->stime + proc_stat->utime;
+      if (last_proc_jiffies && last_proc_cpu_usage_read)
+      {
+        const double elapsed_seconds = std::chrono::duration<double>(now - *last_proc_cpu_usage_read).count();
+        const double usage_pct = (current_proc_jiffies - *last_proc_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
+                                 32; // TODO: replace with actual CPU count
+        proc_cpu_load_pct_rb_.push(usage_pct);
+      }
+      last_proc_jiffies = current_proc_jiffies;
+    }
+    last_proc_cpu_usage_read = now;
   }
 
   void update_meminfo()
@@ -177,6 +223,16 @@ private:
       mem_available_rb_.push(static_cast<double>(meminfo->mem_available_kb));
       total_memory_ = meminfo->mem_total_kb;
       available_memory_window_.set_ymax(total_memory_);
+      proc_memory_used_window_.set_ymax(total_memory_);
+    }
+  }
+
+  void update_proc_mem_usage()
+  {
+    if (const auto x = collect<ProcStatusParser>(std::format("/proc/{}/status", PROCESS_PID)))
+    {
+      LOG_DEBUG("got ", x->vm_rss_kb);
+      proc_mem_used_rb_.push(static_cast<double>(x->vm_rss_kb));
     }
   }
 
