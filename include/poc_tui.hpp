@@ -28,6 +28,7 @@
 
 static constexpr int INTERVAL_MS = 1000;
 static constexpr int PROCESS_PID = 1233;
+static constexpr int DATA_POINTS = 50000;
 
 inline Rect rect_from_fractions(TerminalSize size, double row_frac, double col_frac, double row_span, double col_span)
 {
@@ -118,6 +119,12 @@ public:
         break;
       }
 
+      current_stat_ = collect<StatParser>("/proc/stat");
+      current_proc_stat_ = collect<ProcStatParser>(std::format("/proc/{}/stat", PROCESS_PID));
+      current_mem_info_ = collect<MemInfoParser>("/proc/meminfo");
+      current_proc_status_ = collect<ProcStatusParser>(std::format("/proc/{}/status", PROCESS_PID));
+      current_net_dev_ = collect<NetDevParser>("/proc/net/dev");
+
       update_stat();
       update_proc_cpu_usage();
       update_meminfo();
@@ -153,22 +160,14 @@ private:
   const int clock_tick_ = sysconf(_SC_CLK_TCK);
   const SystemInfo system_info_ = get_system_info();
 
-  Stat last_stat_;
-  NetDev last_net_dev_{-1, -1};
   double total_memory_ = 0;
-  std::chrono::steady_clock::time_point last_net_dev_read_ = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::time_point last_procs_read_ = std::chrono::steady_clock::now();
-  std::unordered_map<int, long long> last_proc_jiffies_;
 
-  RingBuffer<double> cpu_load_pct_rb_{50000};
-  RingBuffer<double> proc_cpu_load_pct_rb_{50000};
-  RingBuffer<double> mem_available_rb_{50000};
-  RingBuffer<double> proc_mem_used_rb_{50000};
-  RingBuffer<double> download_rb_{50000};
-  RingBuffer<double> upload_rb_{50000};
-
-  std::deque<double> download_history_;
-  std::deque<double> upload_history_;
+  RingBuffer<double> cpu_load_pct_rb_{DATA_POINTS};
+  RingBuffer<double> proc_cpu_load_pct_rb_{DATA_POINTS};
+  RingBuffer<double> mem_available_rb_{DATA_POINTS};
+  RingBuffer<double> proc_mem_used_rb_{DATA_POINTS};
+  RingBuffer<double> download_rb_{DATA_POINTS};
+  RingBuffer<double> upload_rb_{DATA_POINTS};
 
   std::vector<ProcData> proc_data_;
 
@@ -181,115 +180,156 @@ private:
   ProcessListWindow process_list_window_;
   SystemInfoWindow system_info_window_;
 
+  std::optional<Poll<Stat>> current_stat_ = std::nullopt;
+  std::optional<Poll<ProcStat>> current_proc_stat_ = std::nullopt;
+  std::optional<Poll<MemInfo>> current_mem_info_ = std::nullopt;
+  std::optional<Poll<ProcStatus>> current_proc_status_ = std::nullopt;
+  std::optional<Poll<NetDev>> current_net_dev_ = std::nullopt;
+
+  void repeat_last_rb_value(RingBuffer<double> &rb)
+  {
+    if (const auto newest = rb.newest())
+    {
+      rb.push(*newest);
+    }
+  }
+
   void update_stat()
   {
-    if (const auto stat = collect<StatParser>("/proc/stat"))
+    static std::optional<Stat> previous_stat;
+
+    if (!current_stat_)
     {
-      CpuTimes delta = stat->cpu_times - last_stat_.cpu_times;
+      repeat_last_rb_value(cpu_load_pct_rb_);
+      return;
+    }
+
+    if (previous_stat)
+    {
+      CpuTimes delta = current_stat_->value.cpu_times - previous_stat->cpu_times;
       long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
       long total_time = busy_time + delta.idle + delta.iowait;
       double usage = static_cast<double>(busy_time) / static_cast<double>(total_time) * 100;
-
       cpu_load_pct_rb_.push(usage);
-
-      last_stat_ = *stat;
     }
+
+    previous_stat = current_stat_->value;
   }
 
   void update_proc_cpu_usage()
   {
-    static std::optional<long long> last_proc_jiffies = std::nullopt;
-    static std::optional<std::chrono::steady_clock::time_point> last_proc_cpu_usage_read = std::nullopt;
+    static std::optional<long long> previous_jiffies = std::nullopt;
+    static std::optional<std::chrono::steady_clock::time_point> previous_read_time = std::nullopt;
 
-    auto now = std::chrono::steady_clock::now();
-    if (const auto proc_stat = collect<ProcStatParser>(std::format("/proc/{}/stat", PROCESS_PID)))
+    if (!current_proc_stat_)
     {
-      const long long current_proc_jiffies = proc_stat->stime + proc_stat->utime;
-      if (last_proc_jiffies && last_proc_cpu_usage_read)
-      {
-        const double elapsed_seconds = std::chrono::duration<double>(now - *last_proc_cpu_usage_read).count();
-        const double usage_pct = (current_proc_jiffies - *last_proc_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
-                                 system_info_.cpu_threads;
-        proc_cpu_load_pct_rb_.push(usage_pct);
-      }
-      last_proc_jiffies = current_proc_jiffies;
+      repeat_last_rb_value(proc_cpu_load_pct_rb_);
+      return;
     }
-    last_proc_cpu_usage_read = now;
+
+    const long long current_proc_jiffies = current_proc_stat_->value.stime + current_proc_stat_->value.utime;
+    if (previous_jiffies && previous_read_time)
+    {
+      const double elapsed_seconds =
+          std::chrono::duration<double>(current_proc_stat_->read_time - *previous_read_time).count();
+      const double usage_pct = (current_proc_jiffies - *previous_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
+                               system_info_.cpu_threads;
+      proc_cpu_load_pct_rb_.push(usage_pct);
+    }
+
+    previous_jiffies = current_proc_jiffies;
+    previous_read_time = current_proc_stat_->read_time;
   }
 
   void update_meminfo()
   {
-    if (const auto meminfo = collect<MemInfoParser>("/proc/meminfo"))
+    if (!current_mem_info_)
     {
-      mem_available_rb_.push(static_cast<double>(meminfo->mem_available_kb));
-      total_memory_ = meminfo->mem_total_kb;
-      available_memory_window_.set_ymax(total_memory_);
-      proc_memory_used_window_.set_ymax(total_memory_);
+      repeat_last_rb_value(mem_available_rb_);
+      return;
     }
+
+    mem_available_rb_.push(static_cast<double>(current_mem_info_->value.mem_available_kb));
+    total_memory_ = current_mem_info_->value.mem_total_kb;
+    available_memory_window_.set_ymax(total_memory_);
+    proc_memory_used_window_.set_ymax(total_memory_);
   }
 
   void update_proc_mem_usage()
   {
-    if (const auto x = collect<ProcStatusParser>(std::format("/proc/{}/status", PROCESS_PID)))
+    if (!current_proc_status_)
     {
-      LOG_DEBUG("got ", x->vm_rss_kb);
-      proc_mem_used_rb_.push(static_cast<double>(x->vm_rss_kb));
+      repeat_last_rb_value(proc_mem_used_rb_);
+      return;
     }
+
+    proc_mem_used_rb_.push(static_cast<double>(current_proc_status_->value.vm_rss_kb));
   }
 
   void update_net_dev()
   {
-    if (const auto net_dev = collect<NetDevParser>("/proc/net/dev"))
+    static NetDev previous_net_dev{-1, -1};
+    static std::chrono::steady_clock::time_point previous_read_time = std::chrono::steady_clock::now();
+    static std::deque<double> download_history_;
+    static std::deque<double> upload_history_;
+
+    if (!current_net_dev_)
     {
-      auto now = std::chrono::steady_clock::now();
-      double elapsed_seconds = std::chrono::duration<double>(now - last_net_dev_read_).count();
-
-      if (last_net_dev_.rx_bytes != -1)
-      {
-        double download = (net_dev->rx_bytes - last_net_dev_.rx_bytes) / elapsed_seconds;
-        download_rb_.push(download);
-        download_history_.push_back(download);
-        if (download_history_.size() > receive_bytes_window_.rect().col_count - 2)
-        {
-          download_history_.pop_front();
-        }
-        if (const auto max_it = std::max_element(download_history_.begin(), download_history_.end());
-            max_it != download_history_.end() && *max_it > 0)
-        {
-          receive_bytes_window_.set_ymax(*max_it);
-        }
-      }
-
-      if (last_net_dev_.tx_bytes != -1)
-      {
-        double upload = (net_dev->tx_bytes - last_net_dev_.tx_bytes) / elapsed_seconds;
-        upload_rb_.push(upload);
-        upload_history_.push_back(upload);
-        if (upload_history_.size() > transmit_bytes_window_.rect().col_count - 2)
-        {
-          upload_history_.pop_front();
-        }
-        if (const auto max_it = std::max_element(upload_history_.begin(), upload_history_.end());
-            max_it != upload_history_.end() && *max_it > 0)
-        {
-          transmit_bytes_window_.set_ymax(*max_it);
-        }
-      }
-
-      last_net_dev_ = *net_dev;
-      last_net_dev_read_ = now;
+      repeat_last_rb_value(download_rb_);
+      repeat_last_rb_value(upload_rb_);
+      return;
     }
+
+    double elapsed_seconds = std::chrono::duration<double>(current_net_dev_->read_time - previous_read_time).count();
+
+    if (previous_net_dev.rx_bytes != -1)
+    {
+      double download = (current_net_dev_->value.rx_bytes - previous_net_dev.rx_bytes) / elapsed_seconds;
+      download_rb_.push(download);
+      download_history_.push_back(download);
+      if (download_history_.size() > receive_bytes_window_.rect().col_count - 2)
+      {
+        download_history_.pop_front();
+      }
+      if (const auto max_it = std::max_element(download_history_.begin(), download_history_.end());
+          max_it != download_history_.end() && *max_it > 0)
+      {
+        receive_bytes_window_.set_ymax(*max_it);
+      }
+    }
+
+    if (previous_net_dev.tx_bytes != -1)
+    {
+      double upload = (current_net_dev_->value.tx_bytes - previous_net_dev.tx_bytes) / elapsed_seconds;
+      upload_rb_.push(upload);
+      upload_history_.push_back(upload);
+      if (upload_history_.size() > transmit_bytes_window_.rect().col_count - 2)
+      {
+        upload_history_.pop_front();
+      }
+      if (const auto max_it = std::max_element(upload_history_.begin(), upload_history_.end());
+          max_it != upload_history_.end() && *max_it > 0)
+      {
+        transmit_bytes_window_.set_ymax(*max_it);
+      }
+    }
+
+    previous_net_dev = current_net_dev_->value;
+    previous_read_time = current_net_dev_->read_time;
   }
 
   void update_proc_data()
   {
-    auto now = std::chrono::steady_clock::now();
+    static std::chrono::steady_clock::time_point previous_read_time = std::chrono::steady_clock::now();
+    static std::unordered_map<int, long long> last_proc_jiffies_;
+
+    const auto current_read_time = std::chrono::steady_clock::now();
     auto proc_data = get_procs_data();
 
     proc_data_.clear();
     proc_data_.reserve(proc_data.size());
 
-    double elapsed_seconds = std::chrono::duration<double>(now - last_procs_read_).count();
+    double elapsed_seconds = std::chrono::duration<double>(current_read_time - previous_read_time).count();
     std::unordered_set<int> current_pids;
 
     for (auto &pd : proc_data)
@@ -314,6 +354,6 @@ private:
 
     std::erase_if(last_proc_jiffies_, [&](const auto &entry) { return !current_pids.contains(entry.first); });
 
-    last_procs_read_ = now;
+    previous_read_time = current_read_time;
   }
 };

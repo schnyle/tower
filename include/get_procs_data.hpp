@@ -67,7 +67,11 @@ inline std::vector<ProcData> get_procs_data()
     }
 
     result.push_back(
-        {.pid = pid, .name = name, .mem_usage_kb = status->vm_rss_kb, .utime = stat->utime, .stime = stat->stime});
+        {.pid = pid,
+         .name = name,
+         .mem_usage_kb = status->value.vm_rss_kb,
+         .utime = stat->value.utime,
+         .stime = stat->value.stime});
   }
 
   return result;

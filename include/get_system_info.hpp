@@ -34,8 +34,8 @@ inline SystemInfo get_system_info()
 
   if (const auto cpu_info = collect<CpuInfoParser>("/proc/cpuinfo"))
   {
-    system_info.cpu_model = cpu_info->model_name;
-    system_info.cpu_cores = cpu_info->cpu_cores;
+    system_info.cpu_model = cpu_info->value.model_name;
+    system_info.cpu_cores = cpu_info->value.cpu_cores;
   };
 
   system_info.cpu_threads = sysconf(_SC_NPROCESSORS_ONLN);

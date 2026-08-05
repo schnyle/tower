@@ -1,4 +1,3 @@
-#include "poc_basic_text.hpp"
 #include "poc_tui.hpp"
 
 #include "logger.hpp"
@@ -9,7 +8,6 @@ int main(void)
 
   try
   {
-    // poc_basic_text();
     PocTui poc_tui;
     poc_tui.run();
   }
