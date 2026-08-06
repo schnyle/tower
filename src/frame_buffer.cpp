@@ -1,14 +1,11 @@
 #include <format>
-#include <memory>
 #include <string>
 
 #include "frame_buffer.hpp"
 
-FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols) : rows_(rows), cols_(cols)
+FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols)
+    : rows_(rows), cols_(cols), front_{rows, cols}, back_{rows, cols}
 {
-  front_ = std::make_unique<Canvas>(rows, cols);
-  back_ = std::make_unique<Canvas>(rows, cols);
-
   const int estimated_frame_size = rows_ * (cols_ * 2 + 2);
   frame_.reserve(estimated_frame_size);
 }
@@ -19,37 +16,37 @@ void FrameBuffer::draw()
   static constexpr std::string_view CURSOR_COLOR_FMT = "\033[38;2;{};{};{}m";
   frame_.clear();
 
-  int last_written_i = -1;
-  int last_written_j = -1;
-  for (unsigned short i = 0; i < rows_; ++i)
+  int last_written_row = -1;
+  int last_written_col = -1;
+  for (unsigned short row = 0; row < rows_; ++row)
   {
-    for (unsigned short j = 0; j < cols_; ++j)
+    for (unsigned short col = 0; col < cols_; ++col)
     {
-      if ((*back_)(i, j) == (*front_)(i, j))
+      if (back_(row, col) == front_(row, col))
       {
         continue;
       }
 
-      if (i != last_written_i || j != last_written_j + 1)
+      front_(row, col) = back_(row, col);
+
+      if (row != last_written_row || col != last_written_col + 1)
       {
-        frame_ += std::format(CURSOR_POSITION_FMT, i + 1, j + 1);
+        frame_ += std::format(CURSOR_POSITION_FMT, row + 1, col + 1);
       }
 
-      const Color color = (*back_)(i, j).color;
+      const Color color = back_(row, col).color;
       if (color != current_color)
       {
         frame_ += std::format(CURSOR_COLOR_FMT, color.r, color.g, color.b);
         current_color = color;
       }
 
-      frame_ += (*back_)(i, j).bytes;
-      last_written_i = i;
-      last_written_j = j;
+      frame_ += back_(row, col).bytes;
+      last_written_row = row;
+      last_written_col = col;
     }
   }
 
   fputs(frame_.c_str(), stdout);
   fflush(stdout);
-
-  std::swap(front_, back_);
 }
