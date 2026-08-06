@@ -13,6 +13,7 @@
 
 #include "canvas.hpp"
 #include "collect.hpp"
+#include "format_utils.hpp"
 #include "frame_buffer.hpp"
 #include "get_procs_data.hpp"
 #include "get_system_info.hpp"
@@ -72,7 +73,7 @@ public:
             0.,
             100.,
             Color::red(),
-            [](double v) { return std::format("{:.1f}%", v); },
+            [](double v) { return format_percent(v); },
             proc_cpu_load_pct_rb_},
         available_memory_window_{
             "available memory",
@@ -80,7 +81,7 @@ public:
             0.,
             1.,
             Color::green(),
-            [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
+            [](double v) { return format_memory_size(v); },
             mem_available_rb_},
         proc_memory_used_window_{
             "proc used memory",
@@ -88,7 +89,7 @@ public:
             0.,
             1.,
             Color::green(),
-            [](double v) { return std::format("{:.1f} GB", v / 1024. / 1024.); },
+            [](double v) { return format_memory_size(v); },
             proc_mem_used_rb_},
         receive_bytes_window_{
             "download",
@@ -409,6 +410,16 @@ private:
     proc_mem_used_rb_.push(static_cast<double>(current_proc_status_->value.vm_rss_kb));
   }
 
+  double get_net_dev_ymax(double bytes_per_sec)
+  {
+    double result = 1.0;
+    while (result < bytes_per_sec)
+    {
+      result *= 10;
+    }
+    return result;
+  }
+
   void update_net_dev()
   {
     static NetDev previous_net_dev{-1, -1};
@@ -437,7 +448,7 @@ private:
       if (const auto max_it = std::max_element(download_history_.begin(), download_history_.end());
           max_it != download_history_.end() && *max_it > 0)
       {
-        receive_bytes_window_.set_ymax(*max_it);
+        receive_bytes_window_.set_ymax(get_net_dev_ymax(*max_it));
       }
     }
 
@@ -453,7 +464,7 @@ private:
       if (const auto max_it = std::max_element(upload_history_.begin(), upload_history_.end());
           max_it != upload_history_.end() && *max_it > 0)
       {
-        transmit_bytes_window_.set_ymax(*max_it);
+        transmit_bytes_window_.set_ymax(get_net_dev_ymax(*max_it));
       }
     }
 
