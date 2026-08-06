@@ -97,6 +97,8 @@ private:
       std::cerr << "failed to write to " << log_file_path << ": " << std::strerror(errno) << "\n";
       return;
     }
+
+    log_file_stream << '\n';
   }
 
   ~Logger()

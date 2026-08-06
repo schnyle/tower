@@ -17,6 +17,7 @@
 #include "get_procs_data.hpp"
 #include "get_system_info.hpp"
 #include "logger.hpp"
+#include "parsers/file.hpp" // for parse_next_token; TODO: decide where this helper should live if it has other users
 #include "parsers/meminfo.hpp"
 #include "parsers/net_dev.hpp"
 #include "parsers/stat.hpp"
@@ -25,10 +26,19 @@
 #include "windows/bar_plot.hpp"
 #include "windows/process_list.hpp"
 #include "windows/system_info.hpp"
+#include "windows/user_input_window.hpp"
 
-static constexpr int INTERVAL_MS = 1000;
-static constexpr int PROCESS_PID = 1233;
+static constexpr int METRIC_POLL_MS = 1000;
+static constexpr int INPUT_POLL_MS = 16;
 static constexpr int DATA_POINTS = 50000;
+
+enum class ProcListSortKey
+{
+  Cpu,
+  Mem,
+  Pid,
+  Name
+};
 
 inline Rect rect_from_fractions(TerminalSize size, double row_frac, double col_frac, double row_span, double col_span)
 {
@@ -44,6 +54,10 @@ class PocTui
 public:
   PocTui()
       : tui_(), tui_size_(tui_.get_size()), frame_buffer_(tui_size_.rows, tui_size_.cols),
+        user_input_window_{
+            "user input",
+            Rect{static_cast<size_t>(tui_size_.rows) - 1, 0, 1, tui_size_.cols},
+            user_input_buf_},
         cpu_load_window_{
             "cpu load",
             rect_from_fractions(tui_size_, 0., 0., 1. / 6., 3. / 4.),
@@ -97,65 +111,85 @@ public:
             rect_from_fractions(tui_size_, 1. / 12., 3. / 4., 11. / 12., 1. / 4.),
             proc_data_,
         },
-        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 12., 1. / 4.), system_info_}
+        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 11., 1. / 4.), system_info_}
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
 
   void run()
   {
-    std::chrono::time_point start = std::chrono::steady_clock::now();
-    std::chrono::time_point now = std::chrono::steady_clock::now();
-    std::chrono::time_point next = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    auto tick_start = now;
+    auto next_input_tick = now;
+    auto next_metric_tick = now;
 
-    while (true)
+    while (running_)
     {
-      start = std::chrono::steady_clock::now();
-      next = start + std::chrono::milliseconds(INTERVAL_MS); // TODO: handle long drift, e.g. process stalls for minutes
+      now = std::chrono::steady_clock::now();
 
-      char c;
-      if (read(STDIN_FILENO, &c, 1) == 1 && c == 'q')
+      if (now >= next_input_tick)
       {
-        break;
+        tick_start = std::chrono::steady_clock::now();
+        next_input_tick += std::chrono::milliseconds(INPUT_POLL_MS);
+        handle_keyboard_input();
+        if (!running_)
+        {
+          break;
+        }
+        user_input_window_.draw(frame_buffer_.back_buf());
+
+        warn_if_overrun("input", tick_start, INPUT_POLL_MS);
       }
 
-      current_stat_ = collect<StatParser>("/proc/stat");
-      current_proc_stat_ = collect<ProcStatParser>(std::format("/proc/{}/stat", PROCESS_PID));
-      current_mem_info_ = collect<MemInfoParser>("/proc/meminfo");
-      current_proc_status_ = collect<ProcStatusParser>(std::format("/proc/{}/status", PROCESS_PID));
-      current_net_dev_ = collect<NetDevParser>("/proc/net/dev");
+      if (now >= next_metric_tick)
+      {
+        tick_start = std::chrono::steady_clock::now();
+        next_metric_tick += std::chrono::milliseconds(METRIC_POLL_MS);
 
-      update_stat();
-      update_proc_cpu_usage();
-      update_meminfo();
-      update_proc_mem_usage();
-      update_net_dev();
-      update_proc_data();
+        current_stat_ = collect<StatParser>("/proc/stat");
+        current_mem_info_ = collect<MemInfoParser>("/proc/meminfo");
+        current_net_dev_ = collect<NetDevParser>("/proc/net/dev");
 
-      cpu_load_window_.draw(frame_buffer_.back_buf());
-      proc_cpu_load_window_.draw(frame_buffer_.back_buf());
-      available_memory_window_.draw(frame_buffer_.back_buf());
-      proc_memory_used_window_.draw(frame_buffer_.back_buf());
-      receive_bytes_window_.draw(frame_buffer_.back_buf());
-      transmit_bytes_window_.draw(frame_buffer_.back_buf());
-      process_list_window_.draw(frame_buffer_.back_buf());
-      system_info_window_.draw(frame_buffer_.back_buf());
+        if (const auto pid = selected_pid_)
+        {
+          current_proc_stat_ = collect<ProcStatParser>(std::format("/proc/{}/stat", *pid));
+          current_proc_status_ = collect<ProcStatusParser>(std::format("/proc/{}/status", *pid));
+        }
+
+        update_stat();
+        update_proc_cpu_usage();
+        update_meminfo();
+        update_proc_mem_usage();
+        update_net_dev();
+        update_proc_data();
+
+        cpu_load_window_.draw(frame_buffer_.back_buf());
+        proc_cpu_load_window_.draw(frame_buffer_.back_buf());
+        available_memory_window_.draw(frame_buffer_.back_buf());
+        proc_memory_used_window_.draw(frame_buffer_.back_buf());
+        receive_bytes_window_.draw(frame_buffer_.back_buf());
+        transmit_bytes_window_.draw(frame_buffer_.back_buf());
+        process_list_window_.draw(frame_buffer_.back_buf());
+        system_info_window_.draw(frame_buffer_.back_buf());
+
+        warn_if_overrun("metric", tick_start, METRIC_POLL_MS);
+      }
+
       frame_buffer_.draw();
-
-      if ((now = std::chrono::steady_clock::now()) > next)
-      {
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
-        LOG_WARNING(std::format("loop target time: {}ms, actual time: {}", INTERVAL_MS, duration));
-      }
-
-      std::this_thread::sleep_until(next);
+      std::this_thread::sleep_until(std::min(next_input_tick, next_metric_tick));
     }
   }
 
 private:
+  bool running_ = true;
+  std::optional<int> selected_pid_;
+  ProcListSortKey proc_list_sort_key_ = ProcListSortKey::Cpu;
+
   const Tui tui_;
   TerminalSize tui_size_;
   FrameBuffer frame_buffer_;
+
+  std::string user_input_buf_ = "";
 
   const int clock_tick_ = sysconf(_SC_CLK_TCK);
   const SystemInfo system_info_ = get_system_info();
@@ -171,6 +205,7 @@ private:
 
   std::vector<ProcData> proc_data_;
 
+  UserInputWindow user_input_window_;
   BarPlotWindow cpu_load_window_;
   BarPlotWindow proc_cpu_load_window_;
   BarPlotWindow available_memory_window_;
@@ -186,8 +221,105 @@ private:
   std::optional<Poll<ProcStatus>> current_proc_status_ = std::nullopt;
   std::optional<Poll<NetDev>> current_net_dev_ = std::nullopt;
 
+  void warn_if_overrun(std::string_view tick_name, std::chrono::steady_clock::time_point start, int target_ms)
+  {
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    if (elapsed > std::chrono::milliseconds(target_ms))
+    {
+      const auto actual_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+      LOG_WARNING(std::format("{} tick overran (target: {}ms, actual {}ms)", tick_name, target_ms, actual_ms));
+    }
+  }
+
+  void handle_keyboard_input()
+  {
+    char c;
+    while (read(STDIN_FILENO, &c, 1) == 1)
+    {
+      if (c == 0x03) // Ctrl + C; TODO: re-enable ISIG and handle real SIGINT (more complex termios manipulation)
+      {
+        running_ = false;
+      }
+      else if (c == '\n' || c == '\r') // enter
+      {
+        if (execute_command(user_input_buf_))
+        {
+          user_input_buf_ = "";
+        }
+      }
+      else if (c == 0x7F || c == 0x08) // backspace
+      {
+        if (!user_input_buf_.empty())
+        {
+          user_input_buf_.pop_back();
+        }
+      }
+      else if (('a' <= c && c <= 'z') || (c <= 'A' && c <= 'Z') || ('0' <= c && c <= '9') || (c == ' '))
+      {
+        user_input_buf_ += c;
+      }
+    }
+  }
+
+  bool execute_command(std::string_view input)
+  {
+    bool success = false;
+    const std::string_view cmd = parse_next_token(input);
+
+    if (cmd == "set")
+    {
+      const std::string_view subcmd = parse_next_token(input);
+      if (subcmd == "pid")
+      {
+        const std::string_view arg = parse_next_token(input);
+        int pid;
+        const auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), pid);
+        if (ec == std::errc{} && ptr == arg.data() + arg.size())
+        {
+          selected_pid_ = pid;
+          proc_cpu_load_pct_rb_.clear();
+          proc_mem_used_rb_.clear();
+          success = true;
+        }
+      }
+      else if (subcmd == "procsort")
+      {
+        const std::string_view arg = parse_next_token(input);
+        success = true;
+        if (arg == "cpu")
+        {
+          proc_list_sort_key_ = ProcListSortKey::Cpu;
+        }
+        else if (arg == "mem")
+        {
+          proc_list_sort_key_ = ProcListSortKey::Mem;
+        }
+        else if (arg == "pid")
+        {
+          proc_list_sort_key_ = ProcListSortKey::Pid;
+        }
+        else if (arg == "name")
+        {
+          proc_list_sort_key_ = ProcListSortKey::Name;
+        }
+        else
+        {
+          user_input_buf_ = std::format("unrecognized arg to 'set procsort': {}", arg);
+          success = false;
+        }
+      }
+      else
+      {
+        user_input_buf_ = std::format("unrecognized subcommand to 'set': {}", subcmd);
+      }
+    }
+
+    return success;
+  }
+
   void repeat_last_rb_value(RingBuffer<double> &rb)
   {
+
     if (const auto newest = rb.newest())
     {
       rb.push(*newest);
@@ -220,6 +352,17 @@ private:
   {
     static std::optional<long long> previous_jiffies = std::nullopt;
     static std::optional<std::chrono::steady_clock::time_point> previous_read_time = std::nullopt;
+    static int current_pid = -1;
+
+    if (const auto pid = selected_pid_)
+    {
+      if (current_pid != *selected_pid_)
+      {
+        current_pid = *selected_pid_;
+        previous_jiffies = std::nullopt;
+        previous_read_time = std::nullopt;
+      }
+    }
 
     if (!current_proc_stat_)
     {
@@ -350,7 +493,21 @@ private:
     std::sort(
         proc_data_.begin(),
         proc_data_.end(),
-        [](const ProcData &a, const ProcData &b) { return a.cpu_usage_pct > b.cpu_usage_pct; });
+        [this](const ProcData &a, const ProcData &b)
+        {
+          switch (proc_list_sort_key_)
+          {
+          case ProcListSortKey::Cpu:
+            return a.cpu_usage_pct > b.cpu_usage_pct;
+          case ProcListSortKey::Mem:
+            return a.mem_usage_kb > b.mem_usage_kb;
+          case ProcListSortKey::Pid:
+            return a.pid < b.pid;
+          case ProcListSortKey::Name:
+            return a.name < b.name;
+          }
+          return false; // unreachable
+        });
 
     std::erase_if(last_proc_jiffies_, [&](const auto &entry) { return !current_pids.contains(entry.first); });
 

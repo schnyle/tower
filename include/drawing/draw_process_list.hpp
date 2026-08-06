@@ -14,12 +14,12 @@ inline void draw_processes_table(Canvas &canvas, const Rect rect, const std::vec
 {
   for (size_t i = 0; i < rect.row_count; ++i)
   {
-    canvas.copy_n(rect.row_offset + i, rect.col_offset, std::string(rect.col_count, ' '));
+    canvas.copy_n(rect.row_offset + i, rect.col_offset, std::string(rect.col_count, ' '), rect.col_count);
   }
 
   const std::string header = std::format(
       "{:>{}} {:<{}} {:>{}} {:>{}}", "PID", PID_WIDTH, "NAME", NAME_WIDTH, "MEM", MEM_WIDTH, "CPU", CPU_WIDTH);
-  canvas.copy_n(rect.row_offset, rect.col_offset, header);
+  canvas.copy_n(rect.row_offset, rect.col_offset, header, rect.col_count);
 
   size_t i = 0;
   while (i < processes_data.size() && i < rect.row_count - 1)

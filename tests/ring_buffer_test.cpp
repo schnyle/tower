@@ -105,5 +105,26 @@ TEST(RingBuffer, ThrowsOnOutOfRangeAccess)
   EXPECT_NO_THROW(rb[3]);
 }
 
+TEST(RingBuffer, ClearResetsPointers)
+{
+  RingBuffer<int> rb(4);
+  rb.push(1);
+  rb.push(2);
+  rb.push(3);
+  rb.push(4);
+
+  rb.clear();
+
+  EXPECT_EQ(rb.size(), 0);
+  EXPECT_THROW(rb[0], std::out_of_range);
+  EXPECT_THROW(rb[1], std::out_of_range);
+  EXPECT_THROW(rb[2], std::out_of_range);
+  EXPECT_THROW(rb[3], std::out_of_range);
+
+  rb.push(5);
+  EXPECT_EQ(rb.size(), 1);
+  EXPECT_EQ(rb[0], 5);
+}
+
 // TODO
 //   - capacity 0 should not work

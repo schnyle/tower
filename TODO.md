@@ -17,3 +17,5 @@
 - separation of raw values from computed (where does computing derived values happen?)
 - terminal size change
 - runtime configuration
+- revisit logging (use a 3rd party lib?)
+- proper TDD for drawing functions

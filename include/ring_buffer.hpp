@@ -17,6 +17,15 @@ public:
   std::size_t size() const { return size_; }
   std::size_t capacity() const { return buf_.size(); }
 
+  const T &operator[](std::size_t i) const
+  {
+    if (i >= size())
+    {
+      throw std::out_of_range("RingBuffer index out of range");
+    }
+    return buf_[(head_ + capacity() - size() + i) % capacity()];
+  }
+
   std::optional<T> newest() const
   {
     if (size() == 0)
@@ -36,13 +45,10 @@ public:
     }
   }
 
-  const T &operator[](std::size_t i) const
+  void clear()
   {
-    if (i >= size())
-    {
-      throw std::out_of_range("RingBuffer index out of range");
-    }
-    return buf_[(head_ + capacity() - size() + i) % capacity()];
+    head_ = 0;
+    size_ = 0;
   }
 
 private:
