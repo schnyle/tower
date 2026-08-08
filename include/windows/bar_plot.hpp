@@ -26,6 +26,10 @@ public:
   {
   }
 
+  double ymax() { return ymax_; }
+
+  void set_ymax(double ymax) { ymax_ = ymax; }
+
   void draw(Canvas &canvas) const override
   {
     draw_window_frame(canvas, rect(), heading());
@@ -34,8 +38,6 @@ public:
         rect().row_offset + 1, rect().col_offset + 1, rect().row_count - 2, rect().col_count - 2};
     draw_bar_plot(canvas, bar_plot_rect, ymin_, ymax_, color_, data_rb_);
   }
-
-  void set_ymax(double ymax) { ymax_ = ymax; }
 
 private:
   double ymin_, ymax_;

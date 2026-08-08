@@ -22,6 +22,7 @@
 #include "parsers/meminfo.hpp"
 #include "parsers/net_dev.hpp"
 #include "parsers/stat.hpp"
+#include "parsers/vmstat.hpp"
 #include "ring_buffer.hpp"
 #include "tui.hpp"
 #include "windows/bar_plot.hpp"
@@ -29,18 +30,20 @@
 #include "windows/system_info.hpp"
 #include "windows/user_input_window.hpp"
 
-static constexpr int METRIC_POLL_MS = 1000;
+static constexpr int METRIC_POLL_MS = 100;
 static constexpr int INPUT_POLL_MS = 16;
 static constexpr int DATA_POINTS = 50000;
 
 // clang-format off
 const std::vector<std::vector<std::string>> LAYOUT = {
-    {"cpu",      "cpu",      "cpu",      "sys_info"},
-    {"proc_cpu", "proc_cpu", "proc_cpu", "proc_list"},
-    {"mem",      "mem",      "mem",      "proc_list"},
-    {"proc_mem", "proc_mem", "proc_mem", "proc_list"},
-    {"download", "download", "download", "proc_list"},
-    {"upload",   "upload",   "upload",   "proc_list"},
+    {"cpu",         "cpu",         "cpu",         "sys_info"},
+    {"proc_cpu",    "proc_cpu",    "proc_cpu",    "proc_list"},
+    {"mem",         "mem",         "mem",         "proc_list"},
+    {"proc_mem",    "proc_mem",    "proc_mem",    "proc_list"},
+    {"majflt",      "majflt",      "majflt",      "proc_list"},
+    {"proc_majflt", "proc_majflt", "proc_majflt", "proc_list"},
+    {"download",    "download",    "download",    "proc_list"},
+    {"upload",      "upload",      "upload",      "proc_list"},
 };
 // clang-format on
 
@@ -93,6 +96,22 @@ public:
             Color::green(),
             [](double v) { return format_memory_size(v); },
             proc_mem_used_rb_},
+        major_page_fault_window_{
+            "major page faults",
+            layout_.at("majflt"),
+            0.,
+            1.,
+            Color::green(),
+            [](double v) { return std::to_string(v); },
+            maj_page_fault_rb_},
+        proc_major_page_fault_window_{
+            "proc major page faults",
+            layout_.at("proc_majflt"),
+            0.,
+            1.,
+            Color::green(),
+            [](double v) { return std::to_string(v); },
+            proc_maj_page_fault_rb_},
         receive_bytes_window_{
             "download",
             layout_.at("download"),
@@ -152,6 +171,7 @@ public:
         current_stat_ = collect<StatParser>("/proc/stat");
         current_mem_info_ = collect<MemInfoParser>("/proc/meminfo");
         current_net_dev_ = collect<NetDevParser>("/proc/net/dev");
+        current_vm_stat_ = collect<VmStatParser>("/proc/vmstat");
 
         if (const auto pid = selected_pid_)
         {
@@ -163,6 +183,8 @@ public:
         update_proc_cpu_usage();
         update_meminfo();
         update_proc_mem_usage();
+        update_major_page_faults();
+        update_proc_major_page_faults();
         update_net_dev();
         update_proc_data();
 
@@ -170,6 +192,8 @@ public:
         proc_cpu_load_window_.draw(frame_buffer_.back_buf());
         available_memory_window_.draw(frame_buffer_.back_buf());
         proc_memory_used_window_.draw(frame_buffer_.back_buf());
+        major_page_fault_window_.draw(frame_buffer_.back_buf());
+        proc_major_page_fault_window_.draw(frame_buffer_.back_buf());
         receive_bytes_window_.draw(frame_buffer_.back_buf());
         transmit_bytes_window_.draw(frame_buffer_.back_buf());
         process_list_window_.draw(frame_buffer_.back_buf());
@@ -204,6 +228,8 @@ private:
   RingBuffer<double> proc_cpu_load_pct_rb_{DATA_POINTS};
   RingBuffer<double> mem_available_rb_{DATA_POINTS};
   RingBuffer<double> proc_mem_used_rb_{DATA_POINTS};
+  RingBuffer<double> maj_page_fault_rb_{DATA_POINTS};
+  RingBuffer<double> proc_maj_page_fault_rb_{DATA_POINTS};
   RingBuffer<double> download_rb_{DATA_POINTS};
   RingBuffer<double> upload_rb_{DATA_POINTS};
 
@@ -214,6 +240,8 @@ private:
   BarPlotWindow proc_cpu_load_window_;
   BarPlotWindow available_memory_window_;
   BarPlotWindow proc_memory_used_window_;
+  BarPlotWindow major_page_fault_window_;
+  BarPlotWindow proc_major_page_fault_window_;
   BarPlotWindow receive_bytes_window_;
   BarPlotWindow transmit_bytes_window_;
   ProcessListWindow process_list_window_;
@@ -224,6 +252,7 @@ private:
   std::optional<Poll<MemInfo>> current_mem_info_ = std::nullopt;
   std::optional<Poll<ProcStatus>> current_proc_status_ = std::nullopt;
   std::optional<Poll<NetDev>> current_net_dev_ = std::nullopt;
+  std::optional<Poll<VmStat>> current_vm_stat_ = std::nullopt;
 
   void warn_if_overrun(std::string_view tick_name, std::chrono::steady_clock::time_point start, int target_ms)
   {
@@ -235,7 +264,7 @@ private:
     }
   }
 
-  std::unordered_map<std::string, Rect>
+  static std::unordered_map<std::string, Rect>
   layout_to_rects(TerminalSize terminal_size, const std::vector<std::vector<std::string>> &layout)
   {
     // TODO: add validation (non-zero, all inner vectors have same size)
@@ -456,6 +485,7 @@ private:
 
   void update_proc_mem_usage()
   {
+
     if (!current_proc_status_)
     {
       repeat_last_rb_value(proc_mem_used_rb_);
@@ -463,6 +493,55 @@ private:
     }
 
     proc_mem_used_rb_.push(static_cast<double>(current_proc_status_->value.vm_rss_kb));
+  }
+
+  void update_major_page_faults()
+  {
+    static std::optional<double> previous_major_page_faults = std::nullopt;
+
+    if (!current_vm_stat_)
+    {
+      repeat_last_rb_value(maj_page_fault_rb_);
+      return;
+    }
+
+    if (previous_major_page_faults)
+    {
+      const double current_faults = static_cast<double>(
+          current_vm_stat_->value.pgmajfault - *previous_major_page_faults);
+      maj_page_fault_rb_.push(current_faults);
+      major_page_fault_window_.set_ymax(std::max(major_page_fault_window_.ymax(), current_faults));
+    }
+    previous_major_page_faults = current_vm_stat_->value.pgmajfault;
+  }
+
+  void update_proc_major_page_faults()
+  {
+    static std::optional<double> previous_major_page_faults = std::nullopt;
+    static int current_pid = -1;
+
+    if (const auto pid = selected_pid_)
+    {
+      if (current_pid != *selected_pid_)
+      {
+        current_pid = *selected_pid_;
+        previous_major_page_faults = std::nullopt;
+      }
+    }
+
+    if (!current_proc_stat_)
+    {
+      repeat_last_rb_value(proc_maj_page_fault_rb_);
+      return;
+    }
+
+    if (previous_major_page_faults)
+    {
+      const double current_faults = static_cast<double>(current_proc_stat_->value.majflt - *previous_major_page_faults);
+      proc_maj_page_fault_rb_.push(current_faults);
+      proc_major_page_fault_window_.set_ymax(std::max(proc_major_page_fault_window_.ymax(), current_faults));
+    }
+    previous_major_page_faults = current_proc_stat_->value.majflt;
   }
 
   double get_net_dev_ymax(double bytes_per_sec)

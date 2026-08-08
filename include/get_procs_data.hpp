@@ -17,8 +17,8 @@ struct ProcData
   int pid;
   std::string name;
   long long mem_usage_kb;
-  long long utime;
-  long long stime;
+  long unsigned utime;
+  long unsigned stime;
   double cpu_usage_pct = 0; // computed in poc_tui
 };
 

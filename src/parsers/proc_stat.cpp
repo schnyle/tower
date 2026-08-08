@@ -29,14 +29,46 @@ std::optional<ProcStat> ProcStatParser::parse(std::istream &is)
   line_sv.remove_prefix(pos + 1);
 
   std::string_view tok;
-  for (size_t i = 0; i <= 10; ++i)
+  for (size_t i = 0; i <= 6; ++i)
   {
     tok = parse_next_token(line_sv);
   }
 
   std::from_chars_result result;
 
-  long long utime;
+  long unsigned minflt;
+  tok = parse_next_token(line_sv);
+  result = std::from_chars(tok.data(), tok.data() + tok.size(), minflt);
+  if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
+  {
+    LOG_DEBUG("failed to parse minflt from /proc/<PID>/stat");
+  }
+
+  long unsigned cminflt;
+  tok = parse_next_token(line_sv);
+  result = std::from_chars(tok.data(), tok.data() + tok.size(), cminflt);
+  if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
+  {
+    LOG_DEBUG("failed to parse cminflt from /proc/<PID>/stat");
+  }
+
+  long unsigned majflt;
+  tok = parse_next_token(line_sv);
+  result = std::from_chars(tok.data(), tok.data() + tok.size(), majflt);
+  if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
+  {
+    LOG_DEBUG("failed to parse majflt from /proc/<PID>/stat");
+  }
+
+  long unsigned cmajflt;
+  tok = parse_next_token(line_sv);
+  result = std::from_chars(tok.data(), tok.data() + tok.size(), cmajflt);
+  if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
+  {
+    LOG_DEBUG("failed to parse cmajflt from /proc/<PID>/stat");
+  }
+
+  long unsigned utime;
   tok = parse_next_token(line_sv);
   result = std::from_chars(tok.data(), tok.data() + tok.size(), utime);
   if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
@@ -44,7 +76,7 @@ std::optional<ProcStat> ProcStatParser::parse(std::istream &is)
     LOG_DEBUG("failed to parse utime from /proc/<PID>/stat");
   }
 
-  long long stime;
+  long unsigned stime;
   tok = parse_next_token(line_sv);
   result = std::from_chars(tok.data(), tok.data() + tok.size(), stime);
   if (result.ec != std::errc{} || result.ptr != tok.data() + tok.size())
@@ -52,5 +84,6 @@ std::optional<ProcStat> ProcStatParser::parse(std::istream &is)
     LOG_DEBUG("failed to parse stime from /proc/<PID>/stat");
   }
 
-  return ProcStat{.utime = utime, .stime = stime};
+  return ProcStat{
+      .minflt = minflt, .cminflt = cminflt, .majflt = majflt, .cmajflt = cmajflt, .utime = utime, .stime = stime};
 }
