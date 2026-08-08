@@ -33,6 +33,17 @@ static constexpr int METRIC_POLL_MS = 1000;
 static constexpr int INPUT_POLL_MS = 16;
 static constexpr int DATA_POINTS = 50000;
 
+// clang-format off
+const std::vector<std::vector<std::string>> LAYOUT = {
+    {"cpu",      "cpu",      "cpu",      "sys_info"},
+    {"proc_cpu", "proc_cpu", "proc_cpu", "proc_list"},
+    {"mem",      "mem",      "mem",      "proc_list"},
+    {"proc_mem", "proc_mem", "proc_mem", "proc_list"},
+    {"download", "download", "download", "proc_list"},
+    {"upload",   "upload",   "upload",   "proc_list"},
+};
+// clang-format on
+
 enum class ProcListSortKey
 {
   Cpu,
@@ -40,15 +51,6 @@ enum class ProcListSortKey
   Pid,
   Name
 };
-
-inline Rect rect_from_fractions(TerminalSize size, double row_frac, double col_frac, double row_span, double col_span)
-{
-  return Rect{
-      static_cast<size_t>(size.rows * row_frac),
-      static_cast<size_t>(size.cols * col_frac),
-      static_cast<size_t>(size.rows * row_span),
-      static_cast<size_t>(size.cols * col_span)};
-}
 
 class PocTui
 {
@@ -61,7 +63,7 @@ public:
             user_input_buf_},
         cpu_load_window_{
             "cpu load",
-            rect_from_fractions(tui_size_, 0., 0., 1. / 6., 3. / 4.),
+            layout_.at("cpu"),
             0.,
             100.,
             Color::red(),
@@ -69,7 +71,7 @@ public:
             cpu_load_pct_rb_},
         proc_cpu_load_window_{
             "proc cpu load",
-            rect_from_fractions(tui_size_, 1. / 6., 0., 1. / 6., 3. / 4.),
+            layout_.at("proc_cpu"),
             0.,
             100.,
             Color::red(),
@@ -77,7 +79,7 @@ public:
             proc_cpu_load_pct_rb_},
         available_memory_window_{
             "available memory",
-            rect_from_fractions(tui_size_, 1. / 3., 0., 1. / 6., 3. / 4.),
+            layout_.at("mem"),
             0.,
             1.,
             Color::green(),
@@ -85,7 +87,7 @@ public:
             mem_available_rb_},
         proc_memory_used_window_{
             "proc used memory",
-            rect_from_fractions(tui_size_, (1. / 3.) + (1. / 6.), 0., 1. / 6., 3. / 4.),
+            layout_.at("proc_mem"),
             0.,
             1.,
             Color::green(),
@@ -93,7 +95,7 @@ public:
             proc_mem_used_rb_},
         receive_bytes_window_{
             "download",
-            rect_from_fractions(tui_size_, 2. / 3., 0., 1. / 6., 3. / 4.),
+            layout_.at("download"),
             0.,
             1.,
             Color::blue(),
@@ -101,7 +103,7 @@ public:
             download_rb_},
         transmit_bytes_window_{
             "upload",
-            rect_from_fractions(tui_size_, (2. / 3.) + (1. / 6.), 0., 1. / 6., 3. / 4.),
+            layout_.at("upload"),
             0.,
             1.,
             Color::purple(),
@@ -109,10 +111,10 @@ public:
             upload_rb_},
         process_list_window_{
             "processes",
-            rect_from_fractions(tui_size_, 1. / 12., 3. / 4., 11. / 12., 1. / 4.),
+            layout_.at("proc_list"),
             proc_data_,
         },
-        system_info_window_{"tower", rect_from_fractions(tui_size_, 0., 3. / 4., 1. / 11., 1. / 4.), system_info_}
+        system_info_window_{"tower", layout_.at("sys_info"), system_info_}
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
   }
@@ -188,6 +190,7 @@ private:
 
   const Tui tui_;
   TerminalSize tui_size_;
+  const std::unordered_map<std::string, Rect> layout_ = layout_to_rects(tui_size_, LAYOUT);
   FrameBuffer frame_buffer_;
 
   std::string user_input_buf_ = "";
@@ -230,6 +233,58 @@ private:
       const auto actual_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
       LOG_WARNING(std::format("{} tick overran (target: {}ms, actual {}ms)", tick_name, target_ms, actual_ms));
     }
+  }
+
+  std::unordered_map<std::string, Rect>
+  layout_to_rects(TerminalSize terminal_size, const std::vector<std::vector<std::string>> &layout)
+  {
+    // TODO: add validation (non-zero, all inner vectors have same size)
+    const size_t layout_rows = layout.size();
+    const size_t layout_cols = layout[0].size();
+
+    // for now, ignore "extra" rows/cols that dont divide nicely into the layout dimensions
+    terminal_size.rows = terminal_size.rows - (terminal_size.rows % layout_rows);
+    terminal_size.cols = terminal_size.cols - (terminal_size.cols % layout_cols);
+
+    std::unordered_map<std::string, Rect> result;
+
+    size_t i;
+    size_t window_row_count = 0;
+    size_t window_col_count = 0;
+    for (size_t row = 0; row < layout_rows; ++row)
+    {
+      for (size_t col = 0; col < layout_cols; ++col)
+      {
+        const std::string &ele = layout[row][col];
+        if (result.contains(ele))
+        {
+          continue;
+        }
+
+        window_row_count = 1;
+        window_col_count = 1;
+
+        i = row;
+        while (++i < layout_rows && layout[i][col] == ele)
+        {
+          ++window_row_count;
+        }
+
+        i = col;
+        while (++i < layout_cols && layout[row][i] == ele)
+        {
+          ++window_col_count;
+        }
+
+        result[ele] = Rect{
+            .row_offset = terminal_size.rows / layout_rows * row,
+            .col_offset = terminal_size.cols / layout_cols * col,
+            .row_count = terminal_size.rows / layout_rows * window_row_count,
+            .col_count = terminal_size.cols / layout_cols * window_col_count};
+      }
+    }
+
+    return result;
   }
 
   void handle_keyboard_input()
