@@ -30,7 +30,7 @@
 #include "windows/system_info.hpp"
 #include "windows/user_input_window.hpp"
 
-static constexpr int METRIC_POLL_MS = 100;
+static constexpr int METRIC_POLL_MS = 1000;
 static constexpr int INPUT_POLL_MS = 16;
 static constexpr int DATA_POINTS = 50000;
 
@@ -53,6 +53,46 @@ enum class ProcListSortKey
   Mem,
   Pid,
   Name
+};
+
+template <typename T> class DeltaTracker
+{
+public:
+  std::optional<T> delta(T current_value)
+  {
+    std::optional<T> delta;
+    if (previous_)
+    {
+      delta = current_value - *previous_;
+    }
+    previous_ = current_value;
+    return delta;
+  }
+
+  void reset() { previous_ = std::nullopt; }
+
+private:
+  std::optional<T> previous_;
+};
+
+class ElapsedTimeTracker
+{
+public:
+  std::optional<std::chrono::duration<double>> elapsed(std::chrono::steady_clock::time_point now)
+  {
+    std::optional<std::chrono::duration<double>> elapsed;
+    if (previous_)
+    {
+      elapsed = std::chrono::duration<double>(now - *previous_);
+    }
+    previous_ = now;
+    return elapsed;
+  }
+
+  void reset() { previous_ = std::nullopt; }
+
+private:
+  std::optional<std::chrono::steady_clock::time_point> previous_;
 };
 
 class PocTui
@@ -102,16 +142,16 @@ public:
             0.,
             1.,
             Color::green(),
-            [](double v) { return std::to_string(v); },
-            maj_page_fault_rb_},
+            [](double v) { return std::format("{:.1f}/s", v); },
+            major_page_fault_per_sec_rb_},
         proc_major_page_fault_window_{
             "proc major page faults",
             layout_.at("proc_majflt"),
             0.,
             1.,
             Color::green(),
-            [](double v) { return std::to_string(v); },
-            proc_maj_page_fault_rb_},
+            [](double v) { return std::format("{:.1f}/s", v); },
+            proc_major_page_fault_per_sec_rb_},
         receive_bytes_window_{
             "download",
             layout_.at("download"),
@@ -179,8 +219,8 @@ public:
           current_proc_status_ = collect<ProcStatusParser>(std::format("/proc/{}/status", *pid));
         }
 
-        update_stat();
-        update_proc_cpu_usage();
+        update_cpu_load_pct();
+        update_proc_cpu_load();
         update_meminfo();
         update_proc_mem_usage();
         update_major_page_faults();
@@ -225,13 +265,19 @@ private:
   double total_memory_ = 0;
 
   RingBuffer<double> cpu_load_pct_rb_{DATA_POINTS};
+  DeltaTracker<CpuTimes> cpu_times_delta_tracker_;
   RingBuffer<double> proc_cpu_load_pct_rb_{DATA_POINTS};
+  DeltaTracker<long long> proc_cpu_jiffies_delta_tracker_;
   RingBuffer<double> mem_available_rb_{DATA_POINTS};
   RingBuffer<double> proc_mem_used_rb_{DATA_POINTS};
-  RingBuffer<double> maj_page_fault_rb_{DATA_POINTS};
-  RingBuffer<double> proc_maj_page_fault_rb_{DATA_POINTS};
+  RingBuffer<double> major_page_fault_per_sec_rb_{DATA_POINTS};
+  DeltaTracker<double> maj_page_fault_delta_tracker_;
+  RingBuffer<double> proc_major_page_fault_per_sec_rb_{DATA_POINTS};
+  DeltaTracker<long unsigned> proc_maj_page_fault_delta_tracker_;
   RingBuffer<double> download_rb_{DATA_POINTS};
+  DeltaTracker<double> rx_bytes_delta_tracker_;
   RingBuffer<double> upload_rb_{DATA_POINTS};
+  DeltaTracker<double> tx_bytes_delta_tracker_;
 
   std::vector<ProcData> proc_data_;
 
@@ -248,11 +294,17 @@ private:
   SystemInfoWindow system_info_window_;
 
   std::optional<Poll<Stat>> current_stat_ = std::nullopt;
+  ElapsedTimeTracker stat_elapsed_time_tracker_;
   std::optional<Poll<ProcStat>> current_proc_stat_ = std::nullopt;
+  ElapsedTimeTracker proc_stat_elapsed_time_tracker_;
   std::optional<Poll<MemInfo>> current_mem_info_ = std::nullopt;
+  ElapsedTimeTracker mem_info_elapsed_time_tracker_;
   std::optional<Poll<ProcStatus>> current_proc_status_ = std::nullopt;
+  ElapsedTimeTracker proc_status_elapsed_time_tracker_;
   std::optional<Poll<NetDev>> current_net_dev_ = std::nullopt;
+  ElapsedTimeTracker net_dev_elapsed_time_tracker_;
   std::optional<Poll<VmStat>> current_vm_stat_ = std::nullopt;
+  ElapsedTimeTracker vm_stat_elapsed_time_tracker_;
 
   void warn_if_overrun(std::string_view tick_name, std::chrono::steady_clock::time_point start, int target_ms)
   {
@@ -270,6 +322,9 @@ private:
     // TODO: add validation (non-zero, all inner vectors have same size)
     const size_t layout_rows = layout.size();
     const size_t layout_cols = layout[0].size();
+
+    // reserve final row for user input
+    --terminal_size.rows;
 
     // for now, ignore "extra" rows/cols that dont divide nicely into the layout dimensions
     terminal_size.rows = terminal_size.rows - (terminal_size.rows % layout_rows);
@@ -362,8 +417,16 @@ private:
         if (ec == std::errc{} && ptr == arg.data() + arg.size())
         {
           selected_pid_ = pid;
+
           proc_cpu_load_pct_rb_.clear();
           proc_mem_used_rb_.clear();
+          proc_major_page_fault_per_sec_rb_.clear();
+
+          proc_stat_elapsed_time_tracker_.reset();
+          proc_status_elapsed_time_tracker_.reset();
+          proc_cpu_jiffies_delta_tracker_.reset();
+          proc_maj_page_fault_delta_tracker_.reset();
+
           success = true;
         }
       }
@@ -411,44 +474,25 @@ private:
     }
   }
 
-  void update_stat()
+  void update_cpu_load_pct()
   {
-    static std::optional<Stat> previous_stat;
-
     if (!current_stat_)
     {
       repeat_last_rb_value(cpu_load_pct_rb_);
       return;
     }
 
-    if (previous_stat)
+    if (const auto delta = cpu_times_delta_tracker_.delta(current_stat_->value.cpu_times))
     {
-      CpuTimes delta = current_stat_->value.cpu_times - previous_stat->cpu_times;
-      long busy_time = delta.user + delta.nice + delta.system + delta.irq + delta.softirq + delta.steal;
-      long total_time = busy_time + delta.idle + delta.iowait;
-      double usage = static_cast<double>(busy_time) / static_cast<double>(total_time) * 100;
+      long busy_time = delta->user + delta->nice + delta->system + delta->irq + delta->softirq + delta->steal;
+      long idle_time = delta->idle + delta->iowait;
+      double usage = static_cast<double>(busy_time) / static_cast<double>(busy_time + idle_time) * 100;
       cpu_load_pct_rb_.push(usage);
     }
-
-    previous_stat = current_stat_->value;
   }
 
-  void update_proc_cpu_usage()
+  void update_proc_cpu_load()
   {
-    static std::optional<long long> previous_jiffies = std::nullopt;
-    static std::optional<std::chrono::steady_clock::time_point> previous_read_time = std::nullopt;
-    static int current_pid = -1;
-
-    if (const auto pid = selected_pid_)
-    {
-      if (current_pid != *selected_pid_)
-      {
-        current_pid = *selected_pid_;
-        previous_jiffies = std::nullopt;
-        previous_read_time = std::nullopt;
-      }
-    }
-
     if (!current_proc_stat_)
     {
       repeat_last_rb_value(proc_cpu_load_pct_rb_);
@@ -456,17 +500,14 @@ private:
     }
 
     const long long current_proc_jiffies = current_proc_stat_->value.stime + current_proc_stat_->value.utime;
-    if (previous_jiffies && previous_read_time)
+
+    const auto delta = proc_cpu_jiffies_delta_tracker_.delta(current_proc_jiffies);
+    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed(current_proc_stat_->read_time);
+    if (delta && elapsed)
     {
-      const double elapsed_seconds =
-          std::chrono::duration<double>(current_proc_stat_->read_time - *previous_read_time).count();
-      const double usage_pct = (current_proc_jiffies - *previous_jiffies) / (elapsed_seconds * clock_tick_) * 100 /
-                               system_info_.cpu_threads;
+      const double usage_pct = *delta / (elapsed->count() * clock_tick_) / system_info_.cpu_threads * 100;
       proc_cpu_load_pct_rb_.push(usage_pct);
     }
-
-    previous_jiffies = current_proc_jiffies;
-    previous_read_time = current_proc_stat_->read_time;
   }
 
   void update_meminfo()
@@ -497,51 +538,40 @@ private:
 
   void update_major_page_faults()
   {
-    static std::optional<double> previous_major_page_faults = std::nullopt;
-
     if (!current_vm_stat_)
     {
-      repeat_last_rb_value(maj_page_fault_rb_);
+      repeat_last_rb_value(major_page_fault_per_sec_rb_);
       return;
     }
 
-    if (previous_major_page_faults)
+    const auto delta = maj_page_fault_delta_tracker_.delta(current_vm_stat_->value.pgmajfault);
+    const auto elapsed = vm_stat_elapsed_time_tracker_.elapsed(current_vm_stat_->read_time);
+
+    if (delta && elapsed)
     {
-      const double current_faults = static_cast<double>(
-          current_vm_stat_->value.pgmajfault - *previous_major_page_faults);
-      maj_page_fault_rb_.push(current_faults);
-      major_page_fault_window_.set_ymax(std::max(major_page_fault_window_.ymax(), current_faults));
+      const double page_fault_rate = *delta / elapsed->count();
+      major_page_fault_per_sec_rb_.push(page_fault_rate);
+      major_page_fault_window_.set_ymax(std::max(major_page_fault_window_.ymax(), page_fault_rate));
     }
-    previous_major_page_faults = current_vm_stat_->value.pgmajfault;
   }
 
   void update_proc_major_page_faults()
   {
-    static std::optional<double> previous_major_page_faults = std::nullopt;
-    static int current_pid = -1;
-
-    if (const auto pid = selected_pid_)
-    {
-      if (current_pid != *selected_pid_)
-      {
-        current_pid = *selected_pid_;
-        previous_major_page_faults = std::nullopt;
-      }
-    }
-
     if (!current_proc_stat_)
     {
-      repeat_last_rb_value(proc_maj_page_fault_rb_);
+      repeat_last_rb_value(proc_major_page_fault_per_sec_rb_);
       return;
     }
 
-    if (previous_major_page_faults)
+    const auto delta = proc_maj_page_fault_delta_tracker_.delta(current_proc_stat_->value.majflt);
+    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed(current_proc_stat_->read_time);
+
+    if (delta && elapsed)
     {
-      const double current_faults = static_cast<double>(current_proc_stat_->value.majflt - *previous_major_page_faults);
-      proc_maj_page_fault_rb_.push(current_faults);
-      proc_major_page_fault_window_.set_ymax(std::max(proc_major_page_fault_window_.ymax(), current_faults));
+      const double page_fault_rate = *delta / elapsed->count();
+      proc_major_page_fault_per_sec_rb_.push(page_fault_rate);
+      proc_major_page_fault_window_.set_ymax(std::max(proc_major_page_fault_window_.ymax(), page_fault_rate));
     }
-    previous_major_page_faults = current_proc_stat_->value.majflt;
   }
 
   double get_net_dev_ymax(double bytes_per_sec)
@@ -556,8 +586,6 @@ private:
 
   void update_net_dev()
   {
-    static NetDev previous_net_dev{-1, -1};
-    static std::chrono::steady_clock::time_point previous_read_time = std::chrono::steady_clock::now();
     static std::deque<double> download_history_;
     static std::deque<double> upload_history_;
 
@@ -568,13 +596,15 @@ private:
       return;
     }
 
-    double elapsed_seconds = std::chrono::duration<double>(current_net_dev_->read_time - previous_read_time).count();
+    const auto rx_delta = rx_bytes_delta_tracker_.delta(current_net_dev_->value.rx_bytes);
+    const auto tx_delta = tx_bytes_delta_tracker_.delta(current_net_dev_->value.tx_bytes);
+    const auto elapsed = net_dev_elapsed_time_tracker_.elapsed(current_net_dev_->read_time);
 
-    if (previous_net_dev.rx_bytes != -1)
+    if (rx_delta && elapsed)
     {
-      double download = (current_net_dev_->value.rx_bytes - previous_net_dev.rx_bytes) / elapsed_seconds;
-      download_rb_.push(download);
-      download_history_.push_back(download);
+      const double download_rate = *rx_delta / elapsed->count();
+      download_rb_.push(download_rate);
+      download_history_.push_back(download_rate);
       if (download_history_.size() > receive_bytes_window_.rect().col_count - 2)
       {
         download_history_.pop_front();
@@ -586,9 +616,9 @@ private:
       }
     }
 
-    if (previous_net_dev.tx_bytes != -1)
+    if (tx_delta && elapsed)
     {
-      double upload = (current_net_dev_->value.tx_bytes - previous_net_dev.tx_bytes) / elapsed_seconds;
+      const double upload = *tx_delta / elapsed->count();
       upload_rb_.push(upload);
       upload_history_.push_back(upload);
       if (upload_history_.size() > transmit_bytes_window_.rect().col_count - 2)
@@ -601,9 +631,6 @@ private:
         transmit_bytes_window_.set_ymax(get_net_dev_ymax(*max_it));
       }
     }
-
-    previous_net_dev = current_net_dev_->value;
-    previous_read_time = current_net_dev_->read_time;
   }
 
   void update_proc_data()
