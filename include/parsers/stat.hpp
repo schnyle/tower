@@ -3,6 +3,9 @@
 #include <cstdio>
 #include <istream>
 #include <optional>
+#include <string>
+
+#include "parsers/parser.hpp"
 
 struct CpuTimes
 {
@@ -59,4 +62,7 @@ struct StatParser
 {
   using Data = Stat;
   static std::optional<Data> parse(std::istream &);
+  static std::string path() { return "/proc/stat"; }
 };
+
+static_assert(SystemParser<StatParser>);

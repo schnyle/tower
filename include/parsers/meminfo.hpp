@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iosfwd>
 #include <optional>
+#include <string>
 
 struct MemInfo
 {
@@ -26,4 +27,5 @@ struct MemInfoParser
 {
   using Data = MemInfo;
   static std::optional<Data> parse(std::istream &);
+  static std::string path() { return "/proc/meminfo"; }
 };

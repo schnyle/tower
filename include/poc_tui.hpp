@@ -208,15 +208,15 @@ public:
         tick_start = std::chrono::steady_clock::now();
         next_metric_tick += std::chrono::milliseconds(METRIC_POLL_MS);
 
-        current_stat_ = collect<StatParser>("/proc/stat");
-        current_mem_info_ = collect<MemInfoParser>("/proc/meminfo");
-        current_net_dev_ = collect<NetDevParser>("/proc/net/dev");
-        current_vm_stat_ = collect<VmStatParser>("/proc/vmstat");
+        current_stat_ = collect<StatParser>();
+        current_mem_info_ = collect<MemInfoParser>();
+        current_net_dev_ = collect<NetDevParser>();
+        current_vm_stat_ = collect<VmStatParser>();
 
         if (const auto pid = selected_pid_)
         {
-          current_proc_stat_ = collect<ProcStatParser>(std::format("/proc/{}/stat", *pid));
-          current_proc_status_ = collect<ProcStatusParser>(std::format("/proc/{}/status", *pid));
+          current_proc_stat_ = collect<ProcStatParser>(*pid);
+          current_proc_status_ = collect<ProcStatusParser>(*pid);
         }
 
         update_cpu_load_pct();

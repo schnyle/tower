@@ -4,6 +4,9 @@
 
 #include <iosfwd>
 #include <optional>
+#include <string>
+
+#include "parsers/parser.hpp"
 
 struct VmStat
 {
@@ -15,4 +18,7 @@ struct VmStatParser
 {
   using Data = VmStat;
   static std::optional<Data> parse(std::istream &);
+  static std::string path() { return "/proc/vmstat"; }
 };
+
+static_assert(SystemParser<VmStatParser>);

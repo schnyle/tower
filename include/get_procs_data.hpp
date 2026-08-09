@@ -53,14 +53,14 @@ inline std::vector<ProcData> get_procs_data()
     }
 
     // MEM KB
-    const auto status = collect<ProcStatusParser>(std::format("/proc/{}/status", pid));
+    const auto status = collect<ProcStatusParser>(pid);
     if (!status)
     {
       continue;
     }
 
     // CPU JIFFIES
-    const auto stat = collect<ProcStatParser>(std::format("/proc/{}/stat", pid));
+    const auto stat = collect<ProcStatParser>(pid);
     if (!stat)
     {
       continue;

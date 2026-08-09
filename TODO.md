@@ -19,6 +19,7 @@
 - runtime configuration
 - revisit logging (use a 3rd party lib?)
 - proper TDD for drawing functions
+- add `static_assert` for `Parser`s
 
 ## Design
 

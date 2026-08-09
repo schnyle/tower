@@ -32,7 +32,7 @@ inline SystemInfo get_system_info()
   system_info.version = u.version;
   system_info.machine = u.machine;
 
-  if (const auto cpu_info = collect<CpuInfoParser>("/proc/cpuinfo"))
+  if (const auto cpu_info = collect<CpuInfoParser>())
   {
     system_info.cpu_model = cpu_info->value.model_name;
     system_info.cpu_cores = cpu_info->value.cpu_cores;

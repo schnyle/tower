@@ -3,7 +3,7 @@
 #include <chrono>
 #include <fstream>
 #include <optional>
-#include <string_view>
+#include <string>
 
 #include "logger.hpp"
 #include "parsers/parser.hpp"
@@ -14,13 +14,13 @@ template <typename T> struct Poll
   std::chrono::steady_clock::time_point read_time;
 };
 
-template <Parser P> std::optional<Poll<typename P::Data>> collect(std::string_view path)
+template <Parser P> std::optional<Poll<typename P::Data>> collect_from_path(const std::string &path)
 {
   const auto poll_time = std::chrono::steady_clock::now();
-  std::ifstream file(path.data());
+  std::ifstream file(path);
   if (!file)
   {
-    LOG_ERROR("failed to open file", path.data());
+    LOG_ERROR("failed to open file", path);
     return std::nullopt;
   }
 
@@ -30,4 +30,11 @@ template <Parser P> std::optional<Poll<typename P::Data>> collect(std::string_vi
   }
 
   return std::nullopt;
+}
+
+template <SystemParser P> std::optional<Poll<typename P::Data>> collect() { return collect_from_path<P>(P::path()); }
+
+template <ProcParser P> std::optional<Poll<typename P::Data>> collect(int pid)
+{
+  return collect_from_path<P>(P::path(pid));
 }
