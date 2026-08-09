@@ -78,21 +78,23 @@ private:
 class ElapsedTimeTracker
 {
 public:
-  std::optional<std::chrono::duration<double>> elapsed(std::chrono::steady_clock::time_point now)
+  void update(std::chrono::steady_clock::time_point now)
   {
-    std::optional<std::chrono::duration<double>> elapsed;
-    if (previous_)
-    {
-      elapsed = std::chrono::duration<double>(now - *previous_);
-    }
+    elapsed_ = previous_ ? std::optional{std::chrono::duration<double>(now - *previous_)} : std::nullopt;
     previous_ = now;
-    return elapsed;
   }
 
-  void reset() { previous_ = std::nullopt; }
+  std::optional<std::chrono::duration<double>> elapsed() const { return elapsed_; }
+
+  void reset()
+  {
+    previous_ = std::nullopt;
+    elapsed_ = std::nullopt;
+  }
 
 private:
   std::optional<std::chrono::steady_clock::time_point> previous_;
+  std::optional<std::chrono::duration<double>> elapsed_;
 };
 
 class PocTui
@@ -208,15 +210,33 @@ public:
         tick_start = std::chrono::steady_clock::now();
         next_metric_tick += std::chrono::milliseconds(METRIC_POLL_MS);
 
-        current_stat_ = collect<StatParser>();
-        current_mem_info_ = collect<MemInfoParser>();
-        current_net_dev_ = collect<NetDevParser>();
-        current_vm_stat_ = collect<VmStatParser>();
+        if ((current_stat_ = collect<StatParser>()))
+        {
+          stat_elapsed_time_tracker_.update(current_stat_->read_time);
+        }
+        if ((current_mem_info_ = collect<MemInfoParser>()))
+        {
+          mem_info_elapsed_time_tracker_.update(current_mem_info_->read_time);
+        }
+        if ((current_net_dev_ = collect<NetDevParser>()))
+        {
+          net_dev_elapsed_time_tracker_.update(current_net_dev_->read_time);
+        }
+        if ((current_vm_stat_ = collect<VmStatParser>()))
+        {
+          vm_stat_elapsed_time_tracker_.update(current_vm_stat_->read_time);
+        }
 
         if (const auto pid = selected_pid_)
         {
-          current_proc_stat_ = collect<ProcStatParser>(*pid);
-          current_proc_status_ = collect<ProcStatusParser>(*pid);
+          if ((current_proc_stat_ = collect<ProcStatParser>(*pid)))
+          {
+            proc_stat_elapsed_time_tracker_.update(current_proc_stat_->read_time);
+          }
+          if ((current_proc_status_ = collect<ProcStatusParser>(*pid)))
+          {
+            proc_status_elapsed_time_tracker_.update(current_proc_status_->read_time);
+          }
         }
 
         update_cpu_load_pct();
@@ -502,7 +522,7 @@ private:
     const long long current_proc_jiffies = current_proc_stat_->value.stime + current_proc_stat_->value.utime;
 
     const auto delta = proc_cpu_jiffies_delta_tracker_.delta(current_proc_jiffies);
-    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed(current_proc_stat_->read_time);
+    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed();
     if (delta && elapsed)
     {
       const double usage_pct = *delta / (elapsed->count() * clock_tick_) / system_info_.cpu_threads * 100;
@@ -545,7 +565,7 @@ private:
     }
 
     const auto delta = maj_page_fault_delta_tracker_.delta(current_vm_stat_->value.pgmajfault);
-    const auto elapsed = vm_stat_elapsed_time_tracker_.elapsed(current_vm_stat_->read_time);
+    const auto elapsed = vm_stat_elapsed_time_tracker_.elapsed();
 
     if (delta && elapsed)
     {
@@ -564,7 +584,7 @@ private:
     }
 
     const auto delta = proc_maj_page_fault_delta_tracker_.delta(current_proc_stat_->value.majflt);
-    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed(current_proc_stat_->read_time);
+    const auto elapsed = proc_stat_elapsed_time_tracker_.elapsed();
 
     if (delta && elapsed)
     {
@@ -598,7 +618,7 @@ private:
 
     const auto rx_delta = rx_bytes_delta_tracker_.delta(current_net_dev_->value.rx_bytes);
     const auto tx_delta = tx_bytes_delta_tracker_.delta(current_net_dev_->value.tx_bytes);
-    const auto elapsed = net_dev_elapsed_time_tracker_.elapsed(current_net_dev_->read_time);
+    const auto elapsed = net_dev_elapsed_time_tracker_.elapsed();
 
     if (rx_delta && elapsed)
     {
