@@ -1,12 +1,17 @@
+// https://www.man7.org/linux/man-pages/man5/proc_pid_stat.5.html
+
 #include <charconv>
+#include <format>
 #include <istream>
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include "logger.hpp"
-#include "parsers/file.hpp"
-#include "parsers/proc_stat.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<ProcStat> ProcStatParser::parse(std::istream &is)
+std::optional<RawData::ProcStat> RawData::ProcStat::parse(std::istream &is)
 {
   std::string line;
   if (!std::getline(is, line))
@@ -86,4 +91,14 @@ std::optional<ProcStat> ProcStatParser::parse(std::istream &is)
 
   return ProcStat{
       .minflt = minflt, .cminflt = cminflt, .majflt = majflt, .cmajflt = cmajflt, .utime = utime, .stime = stime};
+}
+
+std::optional<RawData::ProcStat> RawData::ProcStat::collect(int pid)
+{
+  auto file = open_file(std::format("/proc/{}/stat", pid));
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

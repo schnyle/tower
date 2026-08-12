@@ -1,17 +1,14 @@
-#include <charconv>
 #include <istream>
-#include <string_view>
 
-#include "logger.hpp"
-#include "parsers/cpuinfo.hpp"
-#include "parsers/file.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<CpuInfo> CpuInfoParser::parse(std::istream &is)
+std::optional<RawData::CpuInfo> RawData::CpuInfo::parse(std::istream &is)
 {
   bool got_model_name = false;
   bool got_cpu_cores = false;
   std::string line;
-  CpuInfo cpu_info;
+  RawData::CpuInfo cpu_info;
   while (std::getline(is, line))
   {
     const auto kv_line = parse_key_value_line(line);
@@ -45,4 +42,14 @@ std::optional<CpuInfo> CpuInfoParser::parse(std::istream &is)
   }
 
   return std::nullopt;
+}
+
+std::optional<RawData::CpuInfo> RawData::CpuInfo::collect()
+{
+  auto file = open_file("/proc/cpuinfo");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

@@ -1,11 +1,14 @@
 #include <charconv>
+#include <format>
 #include <istream>
 #include <optional>
+#include <string>
+#include <string_view>
 
-#include "parsers/file.hpp"
-#include "parsers/proc_status.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<ProcStatus> ProcStatusParser::parse(std::istream &is)
+std::optional<RawData::ProcStatus> RawData::ProcStatus::parse(std::istream &is)
 {
   std::string line;
   ProcStatus proc_status;
@@ -26,4 +29,14 @@ std::optional<ProcStatus> ProcStatusParser::parse(std::istream &is)
   }
 
   return proc_status;
+}
+
+std::optional<RawData::ProcStatus> RawData::ProcStatus::collect(int pid)
+{
+  auto file = open_file(std::format("/proc/{}/status", pid));
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

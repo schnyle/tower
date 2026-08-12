@@ -1,11 +1,13 @@
 #include <charconv>
-#include <iostream>
+#include <istream>
+#include <optional>
 #include <string>
+#include <unistd.h>
 
-#include "parsers/file.hpp"
-#include "parsers/loadavg.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<LoadAvg> LoadAvgParser::parse(std::istream &is)
+std::optional<RawData::LoadAvg> RawData::LoadAvg::parse(std::istream &is)
 {
   double load_avg_1_min, load_avg_5_min, load_avg_15_min;
   int runnable_procs, total_procs, last_pid_created;
@@ -41,4 +43,14 @@ std::optional<LoadAvg> LoadAvgParser::parse(std::istream &is)
   loadavg.last_pid_created = last_pid_created;
 
   return loadavg;
+}
+
+std::optional<RawData::LoadAvg> RawData::LoadAvg::collect()
+{
+  auto file = open_file("/proc/loadavg");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

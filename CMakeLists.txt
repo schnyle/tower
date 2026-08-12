@@ -14,16 +14,18 @@ endif()
 
 add_library(tower_lib STATIC
   src/frame_buffer.cpp
-  src/parsers/cpuinfo.cpp
-  src/parsers/file.cpp
-  src/parsers/loadavg.cpp
-  src/parsers/meminfo.cpp
-  src/parsers/net_dev.cpp
-  src/parsers/proc_stat.cpp
-  src/parsers/proc_status.cpp
-  src/parsers/stat.cpp
-  src/parsers/vmstat.cpp
   src/tui.cpp
+  src/raw_data/cpuinfo.cpp
+  src/raw_data/clock_tick.cpp
+  src/raw_data/cpu_threads.cpp
+  src/raw_data/kernel_info.cpp
+  src/raw_data/loadavg.cpp
+  src/raw_data/meminfo.cpp
+  src/raw_data/net_dev.cpp
+  src/raw_data/proc_stat.cpp
+  src/raw_data/proc_status.cpp
+  src/raw_data/stat.cpp
+  src/raw_data/vmstat.cpp
 )
 target_include_directories(tower_lib PUBLIC include)
 target_compile_options(tower_lib PUBLIC -Wall -Wextra -ffile-prefix-map=${CMAKE_SOURCE_DIR}/=)

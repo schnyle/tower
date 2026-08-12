@@ -1,12 +1,13 @@
 #include <charconv>
 #include <istream>
+#include <optional>
 #include <string>
 #include <string_view>
 
-#include "parsers/file.hpp"
-#include "parsers/net_dev.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<NetDev> NetDevParser::parse(std::istream &is)
+std::optional<RawData::NetDev> RawData::NetDev::parse(std::istream &is)
 {
   std::string line;
   std::string_view key, tok;
@@ -36,4 +37,14 @@ std::optional<NetDev> NetDevParser::parse(std::istream &is)
   }
 
   return net_dev;
+}
+
+std::optional<RawData::NetDev> RawData::NetDev::collect()
+{
+  auto file = open_file("/proc/net/dev");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

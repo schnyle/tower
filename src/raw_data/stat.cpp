@@ -4,10 +4,26 @@
 #include <string>
 #include <string_view>
 
-#include "parsers/file.hpp"
-#include "parsers/stat.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<Stat> StatParser::parse(std::istream &is)
+RawData::Stat::CpuTimes RawData::operator-(const RawData::Stat::CpuTimes &lhs, const RawData::Stat::CpuTimes &rhs)
+{
+  RawData::Stat::CpuTimes res;
+  res.user = lhs.user - rhs.user;
+  res.nice = lhs.nice - rhs.nice;
+  res.system = lhs.system - rhs.system;
+  res.idle = lhs.idle - rhs.idle;
+  res.iowait = lhs.iowait - rhs.iowait;
+  res.irq = lhs.irq - rhs.irq;
+  res.softirq = lhs.softirq - rhs.softirq;
+  res.steal = lhs.steal - rhs.steal;
+  res.guest = lhs.guest - rhs.guest;
+  res.guest_nice = lhs.guest_nice - rhs.guest_nice;
+  return res;
+}
+
+std::optional<RawData::Stat> RawData::Stat::parse(std::istream &is)
 {
   std::string line;
   std::string_view key, tok;
@@ -89,4 +105,14 @@ std::optional<Stat> StatParser::parse(std::istream &is)
   }
 
   return stat;
+}
+
+std::optional<RawData::Stat> RawData::Stat::collect()
+{
+  auto file = open_file("/proc/stat");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

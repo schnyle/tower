@@ -7,6 +7,7 @@
 #include "canvas.hpp"
 #include "drawing/draw_bar_plot.hpp"
 #include "drawing/draw_window_frame.hpp"
+#include "logger.hpp"
 #include "ring_buffer.hpp"
 #include "windows/window.hpp"
 
@@ -18,17 +19,16 @@ public:
       Rect rect,
       double ymin,
       double ymax,
+      bool dynamic_ymax,
       Color color,
       std::function<std::string(double)> format_value,
-      RingBuffer<double> &data_rb)
-      : Window(std::move(name), rect), ymin_(ymin), ymax_(ymax), color_(color), format_value_(std::move(format_value)),
-        data_rb_(data_rb)
+      const RingBuffer<double> &data_rb)
+      : Window(std::move(name), rect), ymin_(ymin), ymax_(ymax), dynamic_ymax_(dynamic_ymax), color_(color),
+        format_value_(format_value), data_rb_(data_rb)
   {
   }
 
   double ymax() { return ymax_; }
-
-  void set_ymax(double ymax) { ymax_ = ymax; }
 
   void draw(Canvas &canvas) const override
   {
@@ -36,11 +36,37 @@ public:
 
     const Rect bar_plot_rect = Rect{
         rect().row_offset + 1, rect().col_offset + 1, rect().row_count - 2, rect().col_count - 2};
-    draw_bar_plot(canvas, bar_plot_rect, ymin_, ymax_, color_, data_rb_);
+
+    double effective_ymax_ = ymax_;
+    if (dynamic_ymax_ && data_rb_.size() > 0)
+    {
+      const auto [col_index, data_index] = compute_start_indexes(bar_plot_rect.col_count, data_rb_.size());
+      effective_ymax_ = data_rb_[data_index];
+      for (size_t i = data_index + 1; i < data_rb_.size(); ++i)
+      {
+        effective_ymax_ = std::max(effective_ymax_, data_rb_[i]);
+      }
+
+      if (effective_ymax_ <= ymin_)
+      {
+        if (effective_ymax_ < ymin_)
+        {
+          LOG_WARNING(
+              std::format("BarPlot Window {}: ymin set to {} but got data value {}", name(), ymin_, effective_ymax_));
+        }
+        effective_ymax_ = ymax_;
+      }
+    }
+
+    draw_bar_plot(canvas, bar_plot_rect, ymin_, effective_ymax_, color_, data_rb_);
+    std::string formatted_ymax = format_value_(effective_ymax_);
+    canvas.copy_n(bar_plot_rect.row_offset, bar_plot_rect.col_offset, formatted_ymax);
   }
 
 private:
-  double ymin_, ymax_;
+  double ymin_;
+  double ymax_;
+  const bool dynamic_ymax_;
   Color color_;
   std::function<std::string(double)> format_value_;
   const RingBuffer<double> &data_rb_;

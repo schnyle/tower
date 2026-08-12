@@ -126,5 +126,30 @@ TEST(RingBuffer, ClearResetsPointers)
   EXPECT_EQ(rb[0], 5);
 }
 
+TEST(RingBuffer, RepeatLastFunctionality)
+{
+  RingBuffer<int> rb(4);
+  rb.push(1);
+  rb.push(2);
+  rb.push(3);
+  rb.push(4);
+
+  rb.repeat_last();
+
+  EXPECT_EQ(rb[0], 2);
+  EXPECT_EQ(rb[1], 3);
+  EXPECT_EQ(rb[2], 4);
+  EXPECT_EQ(rb[3], 4);
+}
+
+TEST(RingBuffer, RepeatLastDoesNothingWhenEmpty)
+{
+  RingBuffer<int> rb(4);
+
+  rb.repeat_last();
+
+  EXPECT_EQ(rb.size(), 0);
+}
+
 // TODO
 //   - capacity 0 should not work

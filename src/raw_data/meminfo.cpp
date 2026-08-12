@@ -1,12 +1,11 @@
 #include <charconv>
 #include <istream>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 
-#include "parsers/file.hpp"
-#include "parsers/meminfo.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
 long long sv_to_ll(std::string_view sv)
 {
@@ -15,10 +14,8 @@ long long sv_to_ll(std::string_view sv)
   return value;
 }
 
-std::optional<MemInfo> MemInfoParser::parse(std::istream &is)
+std::optional<RawData::MemInfo> RawData::MemInfo::parse(std::istream &is)
 {
-  static const std::set<std::string> KEYS = {"MemTotal", "MemFree", "MemAvailable", "SwapTotal", "SwapFree"};
-
   std::string line;
   MemInfo meminfo;
   while (std::getline(is, line))
@@ -54,4 +51,14 @@ std::optional<MemInfo> MemInfoParser::parse(std::istream &is)
   }
 
   return meminfo;
+}
+
+std::optional<RawData::MemInfo> RawData::MemInfo::collect()
+{
+  auto file = open_file("/proc/meminfo");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

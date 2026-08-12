@@ -1,3 +1,5 @@
+// https://www.man7.org/linux/man-pages/man5/proc_vmstat.5.html
+
 #include <charconv>
 #include <istream>
 #include <optional>
@@ -5,10 +7,10 @@
 #include <string_view>
 
 #include "logger.hpp"
-#include "parsers/file.hpp"
-#include "parsers/vmstat.hpp"
+#include "raw_data/file.hpp"
+#include "raw_data/raw_data.hpp"
 
-std::optional<VmStat> VmStatParser::parse(std::istream &is)
+std::optional<RawData::VmStat> RawData::VmStat::parse(std::istream &is)
 {
   std::string line;
   VmStat vm_stat;
@@ -41,4 +43,14 @@ std::optional<VmStat> VmStatParser::parse(std::istream &is)
   }
 
   return vm_stat;
+}
+
+std::optional<RawData::VmStat> RawData::VmStat::collect()
+{
+  auto file = open_file("/proc/vmstat");
+  if (!file)
+  {
+    return std::nullopt;
+  }
+  return parse(*file);
 }

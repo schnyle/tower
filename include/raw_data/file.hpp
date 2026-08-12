@@ -1,11 +1,24 @@
+#pragma once
+
 #include <fstream>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "logger.hpp"
-#include "parsers/file.hpp"
 
-std::string_view strip(std::string_view sv, std::string_view chars)
+inline std::optional<std::ifstream> open_file(const std::string &path)
+{
+  std::ifstream file(path);
+  if (!file)
+  {
+    LOG_ERROR("failed to open file: ", path);
+    return std::nullopt;
+  }
+  return file;
+}
+
+inline std::string_view strip(std::string_view sv, std::string_view chars = " \t")
 {
   const size_t start = sv.find_first_not_of(chars);
   if (start == std::string_view::npos)
@@ -17,19 +30,13 @@ std::string_view strip(std::string_view sv, std::string_view chars)
   return sv;
 }
 
-const std::optional<std::ifstream> read_file(const std::string_view path)
+struct KeyValueLine
 {
-  std::ifstream file(path.data());
-  if (!file)
-  {
-    LOG_ERROR("failed to open file ", path);
-    return std::nullopt;
-  }
-
-  return file;
+  std::string_view key;
+  std::string_view value;
 };
 
-std::optional<KeyValueLine> parse_key_value_line(std::string_view sv, const char delim)
+inline std::optional<KeyValueLine> parse_key_value_line(std::string_view sv, const char delim = ':')
 {
   const size_t pos = sv.find(delim);
   if (pos == std::string_view::npos)
@@ -50,7 +57,7 @@ std::optional<KeyValueLine> parse_key_value_line(std::string_view sv, const char
   return KeyValueLine{key, value};
 }
 
-std::string_view parse_next_token(std::string_view &sv)
+inline std::string_view parse_next_token(std::string_view &sv)
 {
   const size_t start = sv.find_first_not_of(' ');
   if (start == std::string_view::npos)

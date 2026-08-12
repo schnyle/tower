@@ -45,6 +45,14 @@ public:
     }
   }
 
+  void repeat_last()
+  {
+    if (const auto val = newest())
+    {
+      push(*val);
+    }
+  }
+
   void clear()
   {
     head_ = 0;
