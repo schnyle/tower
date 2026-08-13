@@ -9,6 +9,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "format_utils.hpp"
 #include "frame_buffer.hpp"
 #include "logger.hpp"
 #include "metric.hpp"
@@ -30,15 +31,90 @@ static constexpr int DATA_POINTS = 50000;
 
 static constexpr double BAR_PLOTS_WIDTH_RATIO = 0.75;
 
-static const std::vector<std::function<std::unique_ptr<BarPlotMetric>(const RawDataCache &)>> METRIC_FACTORIES = {
-    [](const RawDataCache &cache) { return std::make_unique<CpuLoadMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<AvailableMemoryMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<MajorPageFaultsMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<DownloadMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<UploadMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<ProcCpuUsageMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<ProcMemUsageMetric>(cache); },
-    [](const RawDataCache &cache) { return std::make_unique<ProcMajorPageFaultsMetric>(cache); },
+struct MetricDefinition
+{
+  std::string name;
+  Color color;
+  double initial_ymin;
+  std::function<double(const RawDataCache &)> initial_ymax;
+  bool dynamic_ymax;
+  std::function<std::string(double)> format;
+  std::function<std::unique_ptr<Metric>(const RawDataCache &)> make;
+};
+
+static const std::vector<MetricDefinition> METRIC_DEFINITIONS = {
+    {
+        .name = "CPU Load",
+        .color = Color::red(),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 100.; },
+        .dynamic_ymax = false,
+        .format = [](const double v) { return std::format("{:.1f}%", v); },
+        .make = make_cpu_load_metric,
+    },
+    {
+        .name = "Available Memory",
+        .color = Color::green(),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &cache) { return cache.get<RawData::MemInfo>()->mem_total_kb; },
+        .dynamic_ymax = false,
+        .format = [](const double v) { return format_bytes_iec(v / 1024); },
+        .make = make_gauge_metric<RawData::MemInfo, &RawData::MemInfo::mem_available_kb>,
+    },
+    {
+        .name = "Major Page Faults",
+        .color = Color(100, 50, 200),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 100.; },
+        .dynamic_ymax = true,
+        .format = [](const double v) { return std::format("{:.1f} per sec", v); },
+        .make = make_delta_rate_metric<RawData::VmStat, &RawData::VmStat::pgmajfault>,
+    },
+    {
+        .name = "Download",
+        .color = Color::purple(),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 10000.; },
+        .dynamic_ymax = true,
+        .format = [](const double v) { return std::format("{}/s", format_bytes_si(v)); },
+        .make = make_delta_rate_metric<RawData::NetDev, &RawData::NetDev::rx_bytes>,
+    },
+    {
+        .name = "Upload",
+        .color = Color::blue(),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 10000.; },
+        .dynamic_ymax = true,
+        .format = [](const double v) { return std::format("{}/s", format_bytes_si(v)); },
+        .make = make_delta_rate_metric<RawData::NetDev, &RawData::NetDev::tx_bytes>,
+    },
+    {
+        .name = "Process Major Page Faults",
+        .color = Color(14, 27, 19),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 100.; },
+        .dynamic_ymax = true,
+        .format = [](const double v) { return std::format("{:.1f} per sec", v); },
+        .make = make_delta_rate_metric<RawData::ProcStat, &RawData::ProcStat::majflt>,
+    },
+    {
+        .name = "Process Memory Usage",
+        .color = Color(47, 200, 150),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &cache) { return cache.get<RawData::MemInfo>()->mem_total_kb; },
+        .dynamic_ymax = false,
+        .format = [](const double v) { return format_bytes_iec(v / 1024); },
+        .make = make_gauge_metric<RawData::ProcStatus, &RawData::ProcStatus::vm_rss_kb>,
+    },
+    {
+        .name = "Process CPU Usage",
+        .color = Color(150, 47, 120),
+        .initial_ymin = 0.,
+        .initial_ymax = [](const RawDataCache &) { return 100.; },
+        .dynamic_ymax = false,
+        .format = [](const double v) { return std::format("{:.1f}%", v); },
+        .make = make_proc_cpu_usage_metric,
+    },
 };
 
 class PocTui
@@ -48,25 +124,26 @@ public:
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
 
-    for (const auto &factory : METRIC_FACTORIES)
+    for (const auto &def : METRIC_DEFINITIONS)
     {
-      bar_plot_metrics_.push_back(factory(raw_data_cache_));
+      metrics_.push_back(def.make(raw_data_cache_));
     }
 
-    // Determine required raw data to fet
-    add_raw_data_kind(RawData::CpuThreads{}); // SystemInfoWindow
-    add_raw_data_kind(RawData::CpuInfo{});    // SystemInfoWindow
-    add_raw_data_kind(RawData::KernelInfo{}); // SystemInfoWindow
-    for (const auto &metric : bar_plot_metrics_)
+    for (const auto &metric : metrics_)
     {
       const std::vector<RawData::Any> &required = metric->required_raw_data();
       std::for_each(required.cbegin(), required.cend(), [&](RawData::Any kind) { add_raw_data_kind(kind); });
     }
+
+    // Determine required raw data to collect
+    add_raw_data_kind(RawData::CpuThreads{}); // SystemInfoWindow
+    add_raw_data_kind(RawData::CpuInfo{});    // SystemInfoWindow
+    add_raw_data_kind(RawData::KernelInfo{}); // SystemInfoWindow
     collect_raw_data();
     collect_single_procs_info();
 
     // Window initialization
-    const size_t bar_plot_row_count = (tui_.get_size().rows - 1) / bar_plot_metrics_.size();
+    const size_t bar_plot_row_count = (tui_.get_size().rows - 1) / metrics_.size();
     const size_t bar_plot_col_count = tui_.get_size().cols * BAR_PLOTS_WIDTH_RATIO;
     const size_t right_hand_window_col_count = tui_.get_size().cols - bar_plot_col_count;
 
@@ -78,6 +155,8 @@ public:
     {
       throw std::runtime_error("failed to get system info");
     }
+
+    // System Info Window
     windows_.push_back(
         std::make_unique<SystemInfoWindow>(
             "tower",
@@ -86,6 +165,7 @@ public:
             *cpu_info,
             *kernel_info));
 
+    // Process List Window
     const size_t process_list_window_row_count = (tui_.get_size().rows - 1) - system_info_window_row_count;
     windows_.push_back(
         std::make_unique<ProcessListWindow>(
@@ -97,29 +177,32 @@ public:
                 right_hand_window_col_count},
             single_procs_info_));
 
+    // User Input Window
     windows_.push_back(
         std::make_unique<UserInputWindow>(
             "user input",
             Rect{static_cast<size_t>(tui_.get_size().rows - 1), 0, 1, tui_.get_size().cols},
             user_input_buf_));
 
+    // Metric Windows
     size_t row_offset = 0;
-    for (const auto &metric : bar_plot_metrics_)
+    for (size_t i = 0; i < METRIC_DEFINITIONS.size(); ++i)
     {
+      const auto &def = METRIC_DEFINITIONS[i];
+      const auto &metric = metrics_[i];
+
       const Rect rect{
           .row_offset = row_offset, .col_offset = 0, .row_count = bar_plot_row_count, .col_count = bar_plot_col_count};
 
-      const BarPlotMetric *metric_ptr = metric.get();
-
       windows_.push_back(
           std::make_unique<BarPlotWindow>(
-              metric->name(),
+              def.name,
               rect,
-              metric->initial_ymin(),
-              metric->initial_ymax(),
-              metric->dynamic_ymax(),
-              metric->color(),
-              [metric_ptr](double v) { return metric_ptr->format_value(v); },
+              def.initial_ymin,
+              def.initial_ymax(raw_data_cache_),
+              def.dynamic_ymax,
+              def.color,
+              [format = def.format](double v) { return format(v); },
               metric->rb()));
 
       row_offset += bar_plot_row_count;
@@ -154,7 +237,7 @@ public:
 
         collect_raw_data();
         collect_single_procs_info();
-        update_bar_plot_metrics();
+        update_metrics();
         draw_windows();
 
         warn_if_overrun("collection", tick_start, COLLECTION_INTERVAL_MS);
@@ -175,7 +258,7 @@ private:
   std::vector<RawData::Any> raw_data_kinds_;
   RawDataCache raw_data_cache_;
 
-  std::vector<std::unique_ptr<BarPlotMetric>> bar_plot_metrics_;
+  std::vector<std::unique_ptr<Metric>> metrics_;
   std::vector<SingleProcInfo> single_procs_info_;
   ProcessListSortKey proc_list_sort_key_ = ProcessListSortKey::Mem;
 
@@ -327,9 +410,9 @@ private:
     }
   }
 
-  void update_bar_plot_metrics()
+  void update_metrics()
   {
-    for (auto &metric : bar_plot_metrics_)
+    for (auto &metric : metrics_)
     {
       metric->update();
     }
@@ -394,7 +477,7 @@ private:
         {
           selected_pid_ = pid;
           clear_process_raw_data();
-          for (auto &metric : bar_plot_metrics_)
+          for (auto &metric : metrics_)
           {
             metric->reset();
           }

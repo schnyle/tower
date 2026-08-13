@@ -152,7 +152,8 @@ using Any = std::
 // trait type templated on a generic type T and a generic type Variant
 // no body => compiler error if instantiated with a Variant that isn't a std::Variant<...>
 // (only the specialization below is ever actually usable)
-template <typename T, typename Variant> struct is_variant_alternative;
+template <typename T, typename Variant>
+struct is_variant_alternative;
 
 // specialization of the trait type templated on a generic type T and a parameter pack of types Ts
 // use std::is_same<T, Ts> to compare the first generic type against one of the parameter pack Ts...
@@ -163,7 +164,7 @@ struct is_variant_alternative<T, std::variant<Ts...>> : std::disjunction<std::is
 {
 };
 
-// define the RawDataMember concept which applies the trait template with the raw data variant
+// define the RawDataKind concept which applies the trait template with the raw data variant
 template <typename T>
 concept RawDataKind = is_variant_alternative<T, RawData::Any>::value;
 

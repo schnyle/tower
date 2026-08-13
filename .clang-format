@@ -12,6 +12,9 @@ AllowAllParametersOfDeclarationOnNextLine: false
 AlignAfterOpenBracket: AlwaysBreak
 IndentWidth: 2
 
+# Template declaration formatting
+AlwaysBreakTemplateDeclarations: Yes
+
 # Brace wrapping configuration
 BreakBeforeBraces: Allman
 BraceWrapping:
