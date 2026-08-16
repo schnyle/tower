@@ -29,10 +29,10 @@
 
 // config
 static constexpr int USER_INPUT_INTERVAL_MS = 16;
-static constexpr int COLLECTION_INTERVAL_MS = 100;
+static constexpr int COLLECTION_INTERVAL_MS = 500;
 static constexpr int DATA_POINTS = 50000;
 
-static constexpr double BAR_PLOTS_WIDTH_RATIO = 0.75;
+static constexpr double BAR_PLOTS_WIDTH_RATIO = 0.65;
 
 struct SingleBarPlotMetricDefinition
 {
@@ -140,132 +140,8 @@ public:
   PocTui()
   {
     LOG_INFO("starting tower with terminal size: ", tui_.get_size().rows, " rows x ", tui_.get_size().cols, " col");
-
-    for (const auto &definition : METRIC_DEFINITIONS)
-    {
-      std::visit(
-          [&](const auto &def)
-          {
-            using T = std::decay_t<decltype(def)>;
-
-            if constexpr (std::is_same_v<T, SingleBarPlotMetricDefinition>)
-            {
-              metrics_.push_back(def.make(raw_data_cache_));
-            }
-            else if constexpr (std::is_same_v<T, DoubleBarPlotMetricDefinition>)
-            {
-              metrics_.push_back(def.make_top(raw_data_cache_));
-              metrics_.push_back(def.make_bottom(raw_data_cache_));
-            }
-          },
-          definition);
-    }
-
-    for (const auto &metric : metrics_)
-    {
-      const std::vector<RawData::Any> &required = metric->required_raw_data();
-      std::for_each(required.cbegin(), required.cend(), [&](RawData::Any kind) { add_raw_data_kind(kind); });
-    }
-
-    // Determine required raw data to collect
-    add_raw_data_kind(RawData::CpuThreads{}); // SystemInfoWindow
-    add_raw_data_kind(RawData::CpuInfo{});    // SystemInfoWindow
-    add_raw_data_kind(RawData::KernelInfo{}); // SystemInfoWindow
-    collect_raw_data();
-    collect_single_procs_info();
-
-    // Window initialization
-    const size_t bar_plot_row_count = (tui_.get_size().rows - 1) / METRIC_DEFINITIONS.size();
-    const size_t bar_plot_col_count = tui_.get_size().cols * BAR_PLOTS_WIDTH_RATIO;
-    const size_t right_hand_window_col_count = tui_.get_size().cols - bar_plot_col_count;
-
-    const size_t system_info_window_row_count = 4;
-    const auto cpu_threads = raw_data_cache_.get<RawData::CpuThreads>();
-    const auto cpu_info = raw_data_cache_.get<RawData::CpuInfo>();
-    const auto kernel_info = raw_data_cache_.get<RawData::KernelInfo>();
-    if (!cpu_threads || !cpu_info || !kernel_info)
-    {
-      throw std::runtime_error("failed to get system info");
-    }
-
-    // System Info Window
-    windows_.push_back(
-        std::make_unique<SystemInfoWindow>(
-            "tower",
-            Rect{0, bar_plot_col_count, system_info_window_row_count, right_hand_window_col_count},
-            *cpu_threads,
-            *cpu_info,
-            *kernel_info));
-
-    // Process List Window
-    const size_t process_list_window_row_count = (tui_.get_size().rows - 1) - system_info_window_row_count;
-    windows_.push_back(
-        std::make_unique<ProcessListWindow>(
-            "process list",
-            Rect{
-                system_info_window_row_count,
-                bar_plot_col_count,
-                process_list_window_row_count,
-                right_hand_window_col_count},
-            single_procs_info_));
-
-    // User Input Window
-    windows_.push_back(
-        std::make_unique<UserInputWindow>(
-            "user input",
-            Rect{static_cast<size_t>(tui_.get_size().rows - 1), 0, 1, tui_.get_size().cols},
-            user_input_buf_));
-
-    // Bar Plot Windows
-    size_t row_offset = 0;
-    size_t metric_offset = 0;
-    for (const auto &definition : METRIC_DEFINITIONS)
-    {
-      const Rect rect{
-          .row_offset = row_offset, .col_offset = 0, .row_count = bar_plot_row_count, .col_count = bar_plot_col_count};
-
-      std::visit(
-          [&](const auto &def)
-          {
-            using T = std::decay_t<decltype(def)>;
-
-            if constexpr (std::is_same_v<T, SingleBarPlotMetricDefinition>)
-            {
-              windows_.push_back(
-                  std::make_unique<SingleBarPlotWindow>(
-                      def.name,
-                      rect,
-                      def.initial_ymin,
-                      def.initial_ymax(raw_data_cache_),
-                      def.dynamic_ymax,
-                      def.never_empty,
-                      def.color,
-                      [format = def.format](double v) { return format(v); },
-                      metrics_[metric_offset]->rb()));
-              metric_offset += 1;
-            }
-            else if constexpr (std::is_same_v<T, DoubleBarPlotMetricDefinition>)
-            {
-              windows_.push_back(
-                  std::make_unique<DoubleBarPlotWindow>(
-                      def.name,
-                      rect,
-                      def.initial_ymin,
-                      def.initial_ymax(raw_data_cache_),
-                      def.dynamic_ymax,
-                      def.never_empty,
-                      def.color_top,
-                      def.color_bottom,
-                      [format = def.format](double v) { return format(v); },
-                      metrics_[metric_offset]->rb(),
-                      metrics_[metric_offset + 1]->rb()));
-              metric_offset += 2;
-            }
-          },
-          definition);
-
-      row_offset += bar_plot_row_count;
-    }
+    initialize_data();
+    initialize_layout();
   }
 
   void run()
@@ -278,6 +154,15 @@ public:
     while (running_)
     {
       now = std::chrono::steady_clock::now();
+
+      const auto &[term_rows, term_cols] = tui_.get_size();
+      if (term_rows != current_term_rows || term_cols != current_term_cols)
+      {
+        LOG_INFO("window shape change detected, re-initializing TUI layout");
+        current_term_rows = term_rows;
+        current_term_cols = term_cols;
+        initialize_layout();
+      }
 
       if (now >= next_input_tick)
       {
@@ -302,7 +187,7 @@ public:
         warn_if_overrun("collection", tick_start, COLLECTION_INTERVAL_MS);
       }
 
-      frame_buffer_.draw();
+      frame_buffer_->draw();
       std::this_thread::sleep_until(std::min(next_input_tick, next_collection_tick));
     }
   };
@@ -310,9 +195,11 @@ public:
 private:
   bool running_ = true;
 
-  const Tui tui_;
+  Tui tui_;
+  size_t current_term_rows = tui_.get_size().rows;
+  size_t current_term_cols = tui_.get_size().cols;
 
-  FrameBuffer frame_buffer_{tui_.get_size().rows, tui_.get_size().cols};
+  std::unique_ptr<FrameBuffer> frame_buffer_;
 
   std::vector<RawData::Any> raw_data_kinds_;
   RawDataCache raw_data_cache_;
@@ -376,6 +263,144 @@ private:
             }
           },
           kind);
+    }
+  }
+
+  void initialize_data()
+  {
+    for (const auto &definition : METRIC_DEFINITIONS)
+    {
+      std::visit(
+          [&](const auto &def)
+          {
+            using T = std::decay_t<decltype(def)>;
+
+            if constexpr (std::is_same_v<T, SingleBarPlotMetricDefinition>)
+            {
+              metrics_.push_back(def.make(raw_data_cache_));
+            }
+            else if constexpr (std::is_same_v<T, DoubleBarPlotMetricDefinition>)
+            {
+              metrics_.push_back(def.make_top(raw_data_cache_));
+              metrics_.push_back(def.make_bottom(raw_data_cache_));
+            }
+          },
+          definition);
+    }
+
+    for (const auto &metric : metrics_)
+    {
+      const std::vector<RawData::Any> &required = metric->required_raw_data();
+      std::for_each(required.cbegin(), required.cend(), [&](RawData::Any kind) { add_raw_data_kind(kind); });
+    }
+
+    // Determine required raw data to collect
+    add_raw_data_kind(RawData::CpuThreads{}); // SystemInfoWindow
+    add_raw_data_kind(RawData::CpuInfo{});    // SystemInfoWindow
+    add_raw_data_kind(RawData::KernelInfo{}); // SystemInfoWindow
+    collect_raw_data();
+    collect_single_procs_info();
+  }
+
+  void initialize_layout()
+  {
+    windows_.clear();
+    tui_.clear();
+
+    const auto &[term_rows, term_cols] = tui_.get_size();
+
+    // FrameBuffer
+    frame_buffer_ = std::make_unique<FrameBuffer>(term_rows, term_cols);
+
+    // Window initialization
+    const size_t bar_plot_row_count = (term_rows - 1) / METRIC_DEFINITIONS.size();
+    const size_t bar_plot_col_count = term_cols * BAR_PLOTS_WIDTH_RATIO;
+    const size_t right_hand_window_col_count = term_cols - bar_plot_col_count;
+
+    const size_t system_info_window_row_count = 4;
+    const auto cpu_threads = raw_data_cache_.get<RawData::CpuThreads>();
+    const auto cpu_info = raw_data_cache_.get<RawData::CpuInfo>();
+    const auto kernel_info = raw_data_cache_.get<RawData::KernelInfo>();
+    if (!cpu_threads || !cpu_info || !kernel_info)
+    {
+      throw std::runtime_error("failed to get system info");
+    }
+
+    // System Info Window
+    windows_.push_back(
+        std::make_unique<SystemInfoWindow>(
+            "tower",
+            Rect{0, bar_plot_col_count, system_info_window_row_count, right_hand_window_col_count},
+            *cpu_threads,
+            *cpu_info,
+            *kernel_info));
+
+    // Process List Window
+    const size_t process_list_window_row_count = (term_rows - 1) - system_info_window_row_count;
+    windows_.push_back(
+        std::make_unique<ProcessListWindow>(
+            "process list",
+            Rect{
+                system_info_window_row_count,
+                bar_plot_col_count,
+                process_list_window_row_count,
+                right_hand_window_col_count},
+            single_procs_info_));
+
+    // User Input Window
+    windows_.push_back(
+        std::make_unique<UserInputWindow>(
+            "user input", Rect{static_cast<size_t>(term_rows - 1), 0, 1, term_cols}, user_input_buf_));
+
+    // Bar Plot Windows
+    size_t row_offset = 0;
+    size_t metric_offset = 0;
+    for (const auto &definition : METRIC_DEFINITIONS)
+    {
+      const Rect rect{
+          .row_offset = row_offset, .col_offset = 0, .row_count = bar_plot_row_count, .col_count = bar_plot_col_count};
+
+      std::visit(
+          [&](const auto &def)
+          {
+            using T = std::decay_t<decltype(def)>;
+
+            if constexpr (std::is_same_v<T, SingleBarPlotMetricDefinition>)
+            {
+              windows_.push_back(
+                  std::make_unique<SingleBarPlotWindow>(
+                      def.name,
+                      rect,
+                      def.initial_ymin,
+                      def.initial_ymax(raw_data_cache_),
+                      def.dynamic_ymax,
+                      def.never_empty,
+                      def.color,
+                      [format = def.format](double v) { return format(v); },
+                      metrics_[metric_offset]->rb()));
+              metric_offset += 1;
+            }
+            else if constexpr (std::is_same_v<T, DoubleBarPlotMetricDefinition>)
+            {
+              windows_.push_back(
+                  std::make_unique<DoubleBarPlotWindow>(
+                      def.name,
+                      rect,
+                      def.initial_ymin,
+                      def.initial_ymax(raw_data_cache_),
+                      def.dynamic_ymax,
+                      def.never_empty,
+                      def.color_top,
+                      def.color_bottom,
+                      [format = def.format](double v) { return format(v); },
+                      metrics_[metric_offset]->rb(),
+                      metrics_[metric_offset + 1]->rb()));
+              metric_offset += 2;
+            }
+          },
+          definition);
+
+      row_offset += bar_plot_row_count;
     }
   }
 
@@ -482,7 +507,7 @@ private:
   {
     for (const auto &window : windows_)
     {
-      window->draw(frame_buffer_.back_buf());
+      window->draw(frame_buffer_->back_buf());
     }
   }
 

@@ -8,6 +8,12 @@ class FrameBuffer
 {
 public:
   FrameBuffer(unsigned short rows, unsigned short cols);
+  ~FrameBuffer();
+
+  FrameBuffer(const FrameBuffer &) = delete;
+  FrameBuffer &operator=(const FrameBuffer &) = delete;
+  FrameBuffer(FrameBuffer &&) = delete;
+  FrameBuffer &operator=(FrameBuffer &&) = delete;
 
   Canvas &back_buf() { return back_; }
 

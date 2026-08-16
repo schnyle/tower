@@ -3,6 +3,9 @@
 
 #include "frame_buffer.hpp"
 
+static constexpr std::string_view CURSOR_POSITION_FMT = "\033[{};{}H";
+static constexpr std::string_view CURSOR_COLOR_FMT = "\033[38;2;{};{};{}m";
+
 FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols)
     : rows_(rows), cols_(cols), front_{rows, cols}, back_{rows, cols}
 {
@@ -10,10 +13,15 @@ FrameBuffer::FrameBuffer(unsigned short rows, unsigned short cols)
   frame_.reserve(estimated_frame_size);
 }
 
+FrameBuffer::~FrameBuffer()
+{
+  const Color white = Color::white();
+  fputs(std::format(CURSOR_COLOR_FMT, white.r, white.g, white.b).c_str(), stdout);
+  fflush(stdout);
+}
+
 void FrameBuffer::draw()
 {
-  static constexpr std::string_view CURSOR_POSITION_FMT = "\033[{};{}H";
-  static constexpr std::string_view CURSOR_COLOR_FMT = "\033[38;2;{};{};{}m";
   frame_.clear();
 
   int last_written_row = -1;

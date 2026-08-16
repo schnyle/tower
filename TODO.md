@@ -9,17 +9,26 @@
 
 ## TODO
 
+### Large
+
 - Tui/Canvas/FrameBuffer/Window ownership/responsibility
-- Config file and runtime configuration
 - UI interaction
-- Per-process collection/plotting
 - System for convenient window placement
-- separation of raw values from computed (where does computing derived values happen?)
-- terminal size change
-- runtime configuration
-- revisit logging (use a 3rd party lib?)
+- runtime configuration (requires config file)
+- CPU stats per core block
+
+### Medium
+
+- Config file
+- handle term size change with SIGWINCH?
 - proper TDD for drawing functions
+- revisit logging (use a 3rd party lib?)
+- explore RawData member data being all `std::optional`
+
+### Small
+
 - `Canvas::set_empty(Rect)`
+- ymax text on bar plot window less loud color (light grey)
 
 ## Design
 
