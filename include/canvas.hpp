@@ -27,7 +27,7 @@ struct Color
 
 struct Cell
 {
-  static constexpr size_t CELL_CHAR_SIZE = 3;
+  static constexpr size_t CELL_CHAR_SIZE = 4;
 
   char bytes[CELL_CHAR_SIZE + 1];
   Color color;
