@@ -69,7 +69,7 @@ static const std::vector<PlotDefinition> METRIC_DEFINITIONS = {
         .initial_ymin = 0.,
         .initial_ymax = [](const RawDataCache &) { return 100.; },
         .dynamic_ymax = false,
-        .never_empty = false,
+        .never_empty = true,
         .format = [](const double v) { return std::format("{:.1f}%", v); },
         .make = make_cpu_load_metric,
     },
@@ -170,6 +170,7 @@ public:
         next_input_tick += std::chrono::milliseconds(USER_INPUT_INTERVAL_MS);
 
         handle_keyboard_input();
+        user_input_window_->draw(frame_buffer_->back_buf());
 
         warn_if_overrun("input", tick_start, USER_INPUT_INTERVAL_MS);
       }
@@ -205,6 +206,7 @@ private:
   RawDataCache raw_data_cache_;
 
   std::vector<std::unique_ptr<Metric>> metrics_;
+  UserInputWindow *user_input_window_ = nullptr;
   std::vector<SingleProcInfo> single_procs_info_;
   ProcessListSortKey proc_list_sort_key_ = ProcessListSortKey::Mem;
 
@@ -349,9 +351,10 @@ private:
             single_procs_info_));
 
     // User Input Window
-    windows_.push_back(
-        std::make_unique<UserInputWindow>(
-            "user input", Rect{static_cast<size_t>(term_rows - 1), 0, 1, term_cols}, user_input_buf_));
+    auto user_input_window = std::make_unique<UserInputWindow>(
+        "user input", Rect{static_cast<size_t>(term_rows - 1), 0, 1, term_cols}, user_input_buf_);
+    user_input_window_ = user_input_window.get();
+    windows_.push_back(std::move(user_input_window));
 
     // Bar Plot Windows
     size_t row_offset = 0;
