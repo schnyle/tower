@@ -4,6 +4,7 @@
 #include <cstring>
 #include <format>
 #include <iostream>
+#include <source_location>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -86,7 +87,12 @@ public:
     return buf_.begin() + ((row + 1) * col_count());
   }
 
-  void copy_n(const size_t row, const size_t col, const std::string_view src, size_t src_count = std::string_view::npos)
+  void copy_n(
+      const size_t row,
+      const size_t col,
+      const std::string_view src,
+      size_t src_count = std::string_view::npos,
+      const std::source_location loc = std::source_location::current())
   {
     validate_row(row);
     validate_col(col);
@@ -99,7 +105,14 @@ public:
 
     if (col + src_count > col_count_)
     {
-      throw std::out_of_range(std::format("Canvas: col ({}) + count ({}) exceeds {} cols", col, src_count, col_count_));
+      throw std::out_of_range(
+          std::format(
+              "Canvas: col ({}) + count ({}) exceeds {} cols, called from {}:{}",
+              col,
+              src_count,
+              col_count_,
+              loc.file_name(),
+              loc.line()));
     }
 
     for (size_t i = 0; i < src_count; ++i)

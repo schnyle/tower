@@ -32,8 +32,6 @@ static constexpr int USER_INPUT_INTERVAL_MS = 16;
 static constexpr int COLLECTION_INTERVAL_MS = 500;
 static constexpr int DATA_POINTS = 50000;
 
-static constexpr double BAR_PLOTS_WIDTH_RATIO = 0.65;
-
 struct SingleBarPlotMetricDefinition
 {
   std::string name;
@@ -162,6 +160,7 @@ public:
         current_term_rows = term_rows;
         current_term_cols = term_cols;
         initialize_layout();
+        draw_windows();
       }
 
       if (now >= next_input_tick)
@@ -317,8 +316,13 @@ private:
 
     // Window initialization
     const size_t bar_plot_row_count = (term_rows - 1) / METRIC_DEFINITIONS.size();
-    const size_t bar_plot_col_count = term_cols * BAR_PLOTS_WIDTH_RATIO;
-    const size_t right_hand_window_col_count = term_cols - bar_plot_col_count;
+    const size_t right_hand_window_col_count = std::max(
+        ProcessListWindow::width(),
+        SystemInfoWindow::width(
+            *raw_data_cache_.get<RawData::CpuThreads>(),
+            *raw_data_cache_.get<RawData::CpuInfo>(),
+            *raw_data_cache_.get<RawData::KernelInfo>()));
+    const size_t bar_plot_col_count = term_cols - right_hand_window_col_count;
 
     const size_t system_info_window_row_count = 4;
     const auto cpu_threads = raw_data_cache_.get<RawData::CpuThreads>();

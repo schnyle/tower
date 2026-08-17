@@ -24,6 +24,8 @@ public:
   {
   }
 
+  static size_t width() { return content_width() + 2; }
+
   void draw(Canvas &canvas) const override
   {
     draw_window_frame(canvas, rect(), name());

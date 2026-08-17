@@ -29,6 +29,9 @@
 
 - `Canvas::set_empty(Rect)`
 - ymax text on bar plot window less loud color (light grey)
+- current value labels for double bar plot
+- unit `enum class`
+- refine semantics of `Canvas::copy_n()` (the clamp param in particular)
 
 ## Design
 
