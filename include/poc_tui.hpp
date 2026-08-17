@@ -298,6 +298,7 @@ private:
     add_raw_data_kind(RawData::CpuThreads{}); // SystemInfoWindow
     add_raw_data_kind(RawData::CpuInfo{});    // SystemInfoWindow
     add_raw_data_kind(RawData::KernelInfo{}); // SystemInfoWindow
+    add_raw_data_kind(RawData::ClockTick{});  // ProcessList
     collect_raw_data();
     collect_single_procs_info();
   }
